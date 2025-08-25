@@ -59,8 +59,8 @@ export const LeadSearch = () => {
     try {
       console.log('[BuscaLeads] Dados da busca:', { nicho, cidade });
       
-      // Mock webhook call - replace with real n8n webhook URL
-      const webhookUrl = "/api/webhook/leads-data";
+      // GesthorAI webhook URL
+      const webhookUrl = "https://webhook.gesthorai.com.br/webhook/leads-data";
       
       const response = await fetch(webhookUrl, {
         method: "POST",
@@ -70,8 +70,6 @@ export const LeadSearch = () => {
         body: JSON.stringify({
           nicho,
           cidade,
-          timestamp: new Date().toISOString(),
-          responsavel: "dashboard",
         }),
       });
 
