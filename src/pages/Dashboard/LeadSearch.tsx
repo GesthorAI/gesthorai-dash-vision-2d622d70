@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useRecentSearches, useCreateSearch } from "@/hooks/useSearches";
 import { useLeadsByDateRange } from "@/hooks/useLeads";
 import { useRealtimeSearches } from "@/hooks/useRealtimeSearches";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AdvancedSearchForm } from "@/components/Search/AdvancedSearchForm";
@@ -49,6 +51,7 @@ export const LeadSearch = () => {
   const [isSearching, setIsSearching] = useState(false);
   const { toast } = useToast();
   const { isConnected } = useRealtimeSearches();
+  const { session } = useAuth();
 
   // Fetch real data
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(20);
@@ -80,26 +83,29 @@ export const LeadSearch = () => {
         webhook_id: `webhook_${Date.now()}`
       });
 
-      // Now call start-search Edge Function to queue the search with n8n
-      const startSearchUrl = `https://xpgazdzcbtjqivbsunvh.supabase.co/functions/v1/start-search`;
-      
-      const response = await fetch(startSearchUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      // Get the current session token for authorization
+      if (!session?.access_token) {
+        throw new Error("No authentication token available");
+      }
+
+      // Call start-search Edge Function with authorization
+      const { data, error } = await supabase.functions.invoke('start-search', {
+        body: {
           search_id: searchResult.id,
           niche: nicho,
           city: cidade
-        }),
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        }
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (error) {
+        console.error("Start search function error:", error);
+        throw new Error(error.message || 'Failed to start search');
       }
 
-      const result = await response.json();
+      console.log("Search started successfully:", data);
 
       toast({
         title: "Busca iniciada!",
@@ -113,9 +119,22 @@ export const LeadSearch = () => {
       setNewCidade("");
     } catch (error) {
       console.error("Erro ao enviar busca:", error);
+      
+      let errorMessage = "Não foi possível iniciar a busca. Tente novamente.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes("Server configuration")) {
+          errorMessage = "Erro de configuração do servidor. Entre em contato com o suporte.";
+        } else if (error.message.includes("Authorization")) {
+          errorMessage = "Erro de autenticação. Faça login novamente.";
+        } else if (error.message.includes("n8n")) {
+          errorMessage = "Erro no sistema de processamento. Tente novamente em alguns minutos.";
+        }
+      }
+      
       toast({
         title: "Erro na busca",
-        description: "Não foi possível iniciar a busca. Tente novamente.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

@@ -21,11 +21,29 @@ serve(async (req) => {
   try {
     console.log('Start search received:', req.method);
     
-    // Initialize Supabase client
-    const supabaseUrl = 'https://xpgazdzcbtjqivbsunvh.supabase.co';
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwZ2F6ZHpjYnRqcWl2YnN1bnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMjYxODksImV4cCI6MjA3MTcwMjE4OX0.59lJ1yOZr4D0tcSgxSAtGQiYb2FT3q_LUooNOaCG67o';
+    // Get environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const n8nWebhookUrl = Deno.env.get('N8N_WEBHOOK_URL');
+    const callbackToken = Deno.env.get('WEBHOOK_SHARED_TOKEN');
     
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('Environment check:', {
+      supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
+      supabaseServiceKey: supabaseServiceKey ? 'SET' : 'MISSING',
+      n8nWebhookUrl: n8nWebhookUrl ? 'SET' : 'MISSING',
+      callbackToken: callbackToken ? 'SET' : 'MISSING'
+    });
+    
+    if (!supabaseUrl || !supabaseServiceKey || !n8nWebhookUrl || !callbackToken) {
+      console.error('Missing required environment variables');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error - missing environment variables' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Initialize Supabase client with service role key
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const payload: StartSearchPayload = await req.json();
     console.log('Start search payload:', JSON.stringify(payload, null, 2));
@@ -34,12 +52,33 @@ serve(async (req) => {
     
     // Validate required fields
     if (!niche || !city) {
-      console.error('Missing required fields');
+      console.error('Missing required fields - niche and city are required');
       return new Response(
         JSON.stringify({ error: 'niche and city are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    // Get user from authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('Missing authorization header');
+      return new Response(
+        JSON.stringify({ error: 'Authorization required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (userError || !user) {
+      console.error('Invalid authorization:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid authorization' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    console.log('User authenticated:', user.id);
     
     let finalSearchId = search_id;
     
@@ -50,7 +89,8 @@ serve(async (req) => {
         .insert({
           niche,
           city,
-          status: 'processando'
+          status: 'processando',
+          user_id: user.id
         })
         .select()
         .single();
@@ -58,7 +98,7 @@ serve(async (req) => {
       if (searchError) {
         console.error('Error creating search:', searchError);
         return new Response(
-          JSON.stringify({ error: 'Failed to create search record' }),
+          JSON.stringify({ error: 'Failed to create search record', details: searchError.message }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -67,20 +107,8 @@ serve(async (req) => {
       console.log('Created new search:', finalSearchId);
     }
     
-    // Get environment variables
-    const n8nWebhookUrl = Deno.env.get('N8N_WEBHOOK_URL');
-    const callbackToken = Deno.env.get('WEBHOOK_SHARED_TOKEN');
-    
-    if (!n8nWebhookUrl || !callbackToken) {
-      console.error('Missing environment variables');
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // Prepare callback URL  
-    const callbackUrl = `https://xpgazdzcbtjqivbsunvh.supabase.co/functions/v1/webhook-leads`;
+    // Prepare callback URL using environment variable
+    const callbackUrl = `${supabaseUrl}/functions/v1/webhook-leads`;
     
     // Prepare payload for n8n
     const n8nPayload = {
@@ -91,28 +119,43 @@ serve(async (req) => {
       callback_token: callbackToken
     };
     
-    console.log('Sending to n8n:', n8nWebhookUrl);
+    console.log('Sending payload to n8n:', n8nWebhookUrl, JSON.stringify(n8nPayload, null, 2));
     
     // Call n8n webhook
     const n8nResponse = await fetch(n8nWebhookUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-webhook-token': callbackToken
       },
       body: JSON.stringify(n8nPayload)
     });
     
+    const responseText = await n8nResponse.text();
+    console.log('n8n response:', n8nResponse.status, responseText);
+    
     if (!n8nResponse.ok) {
-      console.error('n8n webhook failed:', n8nResponse.status, n8nResponse.statusText);
+      console.error('n8n webhook failed:', {
+        status: n8nResponse.status,
+        statusText: n8nResponse.statusText,
+        body: responseText
+      });
       
       // Update search status to failed
-      await supabase
+      const { error: updateError } = await supabase
         .from('searches')
         .update({ status: 'falhou' })
         .eq('id', finalSearchId);
         
+      if (updateError) {
+        console.error('Failed to update search status to failed:', updateError);
+      }
+        
       return new Response(
-        JSON.stringify({ error: 'Failed to queue search job' }),
+        JSON.stringify({ 
+          error: 'Failed to queue search job', 
+          details: `n8n responded with ${n8nResponse.status}: ${responseText}` 
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

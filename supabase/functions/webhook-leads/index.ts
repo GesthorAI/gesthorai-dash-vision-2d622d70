@@ -46,11 +46,26 @@ serve(async (req) => {
       );
     }
     
-    // Initialize Supabase client
-    const supabaseUrl = 'https://xpgazdzcbtjqivbsunvh.supabase.co';
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwZ2F6ZHpjYnRqcWl2YnN1bnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMjYxODksImV4cCI6MjA3MTcwMjE4OX0.59lJ1yOZr4D0tcSgxSAtGQiYb2FT3q_LUooNOaCG67o';
+    // Get environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('Environment check:', {
+      supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
+      supabaseServiceKey: supabaseServiceKey ? 'SET' : 'MISSING',
+      expectedToken: expectedToken ? 'SET' : 'MISSING'
+    });
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing required environment variables');
+      return new Response(
+        JSON.stringify({ error: 'Server configuration error - missing environment variables' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    // Initialize Supabase client with service role key
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     const payload: WebhookPayload = await req.json();
     console.log('Payload received:', JSON.stringify(payload, null, 2));
