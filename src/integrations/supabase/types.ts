@@ -25,6 +25,7 @@ export type Database = {
           niche: string | null
           phone: string | null
           score: number | null
+          search_id: string | null
           source: string | null
           status: string | null
           updated_at: string
@@ -39,6 +40,7 @@ export type Database = {
           niche?: string | null
           phone?: string | null
           score?: number | null
+          search_id?: string | null
           source?: string | null
           status?: string | null
           updated_at?: string
@@ -53,11 +55,20 @@ export type Database = {
           niche?: string | null
           phone?: string | null
           score?: number | null
+          search_id?: string | null
           source?: string | null
           status?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "leads_search_id_fkey"
+            columns: ["search_id"]
+            isOneToOne: false
+            referencedRelation: "searches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       searches: {
         Row: {

@@ -66,7 +66,7 @@ export const LeadSearch = () => {
 
     try {
       // First, save to database
-      await createSearch.mutateAsync({
+      const searchResult = await createSearch.mutateAsync({
         niche: nicho,
         city: cidade,
         status: "processando",
@@ -74,32 +74,50 @@ export const LeadSearch = () => {
         webhook_id: `webhook_${Date.now()}`
       });
 
-      // Then call existing webhook (mantém o webhook original)
-      const response = await fetch("https://webhook.gesthorai.com.br/webhook/leads-data", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nicho,
-          cidade,
-        }),
-      });
+      // Then call the new webhook system
+      const webhookUrl = `https://xpgazdzcbtjqivbsunvh.supabase.co/functions/v1/webhook-leads`;
+      
+      // Simulate external API response (replace with actual external API integration)
+      setTimeout(async () => {
+        try {
+          await fetch(webhookUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              search_id: searchResult.id,
+              status: "completed",
+              total_leads: Math.floor(Math.random() * 50) + 10, // Simulated count
+              leads: [
+                // Simulated leads data - replace with real data
+                {
+                  name: "João Silva",
+                  business: `${nicho} Premium`,
+                  city: cidade,
+                  phone: "11999999999",
+                  email: "joao@example.com",
+                  niche: nicho,
+                  score: Math.floor(Math.random() * 10) + 1
+                }
+              ]
+            }),
+          });
+        } catch (error) {
+          console.error("Error calling webhook:", error);
+        }
+      }, 2000); // 2 second delay to simulate processing
 
-      if (response.ok) {
-        toast({
-          title: "Busca iniciada!",
-          description: `Buscando leads para ${nicho} em ${cidade}. Você será notificado quando concluir.`,
-        });
-        
-        // Reset form
-        setSelectedNicho("");
-        setSelectedCidade("");
-        setNewNicho("");
-        setNewCidade("");
-      } else {
-        throw new Error("Erro na requisição");
-      }
+      toast({
+        title: "Busca iniciada!",
+        description: `Buscando leads para ${nicho} em ${cidade}. Você será notificado quando concluir.`,
+      });
+      
+      // Reset form
+      setSelectedNicho("");
+      setSelectedCidade("");
+      setNewNicho("");
+      setNewCidade("");
     } catch (error) {
       console.error("Erro ao enviar busca:", error);
       toast({

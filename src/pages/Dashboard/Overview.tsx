@@ -2,7 +2,8 @@ import { KPICard } from "@/components/Dashboard/KPICard";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useLeads, useLeadsByDateRange } from "@/hooks/useLeads";
+import { FilterBar } from "@/components/Filters/FilterBar";
+import { useLeadsWithRealtime, useLeadsByDateRange } from "@/hooks/useLeads";
 import { useRecentSearches } from "@/hooks/useSearches";
 import { useFilters } from "@/hooks/useFilters";
 import { 
@@ -54,11 +55,16 @@ const getStatusText = (status: string) => {
 };
 
 export const Overview = () => {
-  const { dateRange } = useFilters();
+  const filters = useFilters();
   
-  // Fetch data using real hooks
-  const { data: allLeads = [], isLoading: leadsLoading } = useLeads();
-  const { data: recentLeads = [], isLoading: recentLeadsLoading } = useLeadsByDateRange(dateRange);
+  // Fetch data using real hooks with filters
+  const { data: allLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime({
+    niche: filters.selectedNiche,
+    city: filters.selectedCity,
+    status: filters.status,
+    dateRange: filters.dateRange
+  });
+  const { data: recentLeads = [], isLoading: recentLeadsLoading } = useLeadsByDateRange(filters.dateRange);
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(10);
 
   // Calculate KPIs from real data
@@ -97,6 +103,9 @@ export const Overview = () => {
         </p>
       </div>
 
+      {/* Global Filters */}
+      <FilterBar />
+
       {/* KPIs Row */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <KPICard
@@ -116,7 +125,7 @@ export const Overview = () => {
           trend={{
             value: 0,
             isPositive: true,
-            period: `últimos ${dateRange} dias`
+            period: `últimos ${filters.dateRange} dias`
           }}
           icon={<Target className="h-4 w-4" />}
           description="Leads no período selecionado"
