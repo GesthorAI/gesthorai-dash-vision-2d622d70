@@ -66,10 +66,10 @@ serve(async (req) => {
       );
     }
     
-    // Verify search exists
+    // Verify search exists and get user_id
     const { data: searchData, error: searchError } = await supabase
       .from('searches')
-      .select('id, niche, city')
+      .select('id, niche, city, user_id')
       .eq('id', search_id)
       .single();
       
@@ -111,10 +111,11 @@ serve(async (req) => {
     if (leads.length > 0 && status === 'concluida') {
       console.log(`Inserting ${leads.length} leads`);
       
-      // Prepare leads data with search_id and defaults
+      // Prepare leads data with search_id, user authentication, and defaults
       const leadsToInsert = leads.map(lead => ({
         ...lead,
         search_id: search_id,
+        user_id: searchData.user_id, // Use the search owner's user_id
         niche: lead.niche || searchData.niche,
         city: lead.city || searchData.city,
         score: lead.score || Math.floor(Math.random() * 10) + 1, // Random score if not provided

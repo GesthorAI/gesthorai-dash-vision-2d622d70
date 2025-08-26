@@ -135,6 +135,7 @@ export const ImportExportPanel = () => {
             source: rowData.origem || "import",
             status: "novo",
             score: 0,
+            user_id: "mock-user-id", // Temporary for scoring
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }];

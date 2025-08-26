@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
 
 export interface Lead {
   id: string;
@@ -14,6 +15,7 @@ export interface Lead {
   source?: string;
   niche?: string;
   search_id?: string;
+  user_id: string;
   created_at: string;
   updated_at: string;
 }
@@ -27,10 +29,14 @@ interface LeadFilters {
 }
 
 export const useLeads = (filters?: LeadFilters) => {
+  const { user } = useAuth();
+  
   return useQuery({
-    queryKey: ["leads", filters],
+    queryKey: ["leads", filters, user?.id],
     queryFn: async () => {
-      let query = supabase.from("leads").select("*");
+      if (!user) return [];
+      
+      let query = supabase.from("leads").select("*").eq("user_id", user.id);
       
       if (filters?.niche) {
         query = query.eq("niche", filters.niche);
@@ -58,7 +64,8 @@ export const useLeads = (filters?: LeadFilters) => {
       
       if (error) throw error;
       return data as Lead[];
-    }
+    },
+    enabled: !!user,
   });
 };
 
@@ -92,29 +99,39 @@ export const useLeadsWithRealtime = (filters?: LeadFilters) => {
 };
 
 export const useLeadsByDateRange = (days: number = 30) => {
+  const { user } = useAuth();
+  
   return useQuery({
-    queryKey: ["leads", "dateRange", days],
+    queryKey: ["leads", "dateRange", days, user?.id],
     queryFn: async () => {
+      if (!user) return [];
+      
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       
       const { data, error } = await supabase
         .from("leads")
         .select("*")
+        .eq("user_id", user.id)
         .gte("created_at", startDate.toISOString())
         .order("created_at", { ascending: false });
       
       if (error) throw error;
       return data as Lead[];
-    }
+    },
+    enabled: !!user,
   });
 };
 
 export const useLeadsByNiche = (niche?: string) => {
+  const { user } = useAuth();
+  
   return useQuery({
-    queryKey: ["leads", "niche", niche],
+    queryKey: ["leads", "niche", niche, user?.id],
     queryFn: async () => {
-      let query = supabase.from("leads").select("*");
+      if (!user) return [];
+      
+      let query = supabase.from("leads").select("*").eq("user_id", user.id);
       
       if (niche) {
         query = query.eq("niche", niche);
@@ -125,15 +142,19 @@ export const useLeadsByNiche = (niche?: string) => {
       if (error) throw error;
       return data as Lead[];
     },
-    enabled: !!niche || niche === undefined
+    enabled: !!user && (!!niche || niche === undefined)
   });
 };
 
 export const useLeadsByCity = (city?: string) => {
+  const { user } = useAuth();
+  
   return useQuery({
-    queryKey: ["leads", "city", city],
+    queryKey: ["leads", "city", city, user?.id],
     queryFn: async () => {
-      let query = supabase.from("leads").select("*");
+      if (!user) return [];
+      
+      let query = supabase.from("leads").select("*").eq("user_id", user.id);
       
       if (city) {
         query = query.eq("city", city);
@@ -144,18 +165,24 @@ export const useLeadsByCity = (city?: string) => {
       if (error) throw error;
       return data as Lead[];
     },
-    enabled: !!city || city === undefined
+    enabled: !!user && (!!city || city === undefined)
   });
 };
 
 export const useCreateLead = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   
   return useMutation({
-    mutationFn: async (lead: Omit<Lead, "id" | "created_at" | "updated_at">) => {
+    mutationFn: async (lead: Omit<Lead, "id" | "created_at" | "updated_at" | "user_id">) => {
+      if (!user) throw new Error('User must be authenticated');
+      
       const { data, error } = await supabase
         .from("leads")
-        .insert(lead)
+        .insert({
+          ...lead,
+          user_id: user.id,
+        })
         .select()
         .single();
       
