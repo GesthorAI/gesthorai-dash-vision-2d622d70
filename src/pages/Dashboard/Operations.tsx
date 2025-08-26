@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KPICard } from "@/components/Dashboard/KPICard";
+import { BulkActionsPanel } from "@/components/Operations/BulkActionsPanel";
+import { WorkflowAutomation } from "@/components/Operations/WorkflowAutomation";
+import { LeadAssignment } from "@/components/Operations/LeadAssignment";
 import { useLeads } from "@/hooks/useLeads";
 import { useRecentSearches } from "@/hooks/useSearches";
 import { 
@@ -77,6 +82,7 @@ const ActionCard = ({
 export const Operations = () => {
   const { data: allLeads = [], isLoading: leadsLoading } = useLeads();
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(50);
+  const [selectedLeads, setSelectedLeads] = useState<any[]>([]);
 
   // Calculate operational metrics
   const now = new Date();
@@ -154,9 +160,19 @@ export const Operations = () => {
       <div>
         <h1 className="text-3xl font-bold">Operacional</h1>
         <p className="text-muted-foreground">
-          Visão operacional e próximas ações prioritárias
+          Centro de operações para gestão eficiente de leads e automação
         </p>
       </div>
+
+      <Tabs defaultValue="dashboard" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="bulk-actions">Ações em Lote</TabsTrigger>
+          <TabsTrigger value="automation">Automação</TabsTrigger>
+          <TabsTrigger value="team">Equipe</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="dashboard" className="space-y-6">
 
       {/* KPIs Operacionais */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -341,6 +357,23 @@ export const Operations = () => {
           )}
         </Card>
       </div>
+        </TabsContent>
+
+        <TabsContent value="bulk-actions" className="space-y-6">
+          <BulkActionsPanel 
+            selectedLeads={selectedLeads}
+            onClearSelection={() => setSelectedLeads([])}
+          />
+        </TabsContent>
+
+        <TabsContent value="automation" className="space-y-6">
+          <WorkflowAutomation />
+        </TabsContent>
+
+        <TabsContent value="team" className="space-y-6">
+          <LeadAssignment />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
