@@ -1,239 +1,293 @@
-import { KPICard } from "@/components/Dashboard/KPICard";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { KPICard } from "@/components/Dashboard/KPICard";
 import { FilterBar } from "@/components/Filters/FilterBar";
-import { useLeadsWithRealtime, useLeadsByDateRange } from "@/hooks/useLeads";
-import { useRecentSearches } from "@/hooks/useSearches";
+import { LeadTrendChart } from "@/components/Charts/LeadTrendChart";
+import { ScoreDistributionChart } from "@/components/Charts/ScoreDistributionChart";
+import { ConversionFunnelChart } from "@/components/Charts/ConversionFunnelChart";
+import { useLeadsWithRealtime } from "@/hooks/useLeads";
+import { useLeadScoring } from "@/hooks/useLeadScoring";
 import { useFilters } from "@/hooks/useFilters";
 import { 
   Users, 
-  Target, 
+  UserCheck, 
   TrendingUp, 
-  Clock,
-  MapPin,
-  Building2,
   Phone,
   Mail,
+  Star,
   Calendar,
-  Search,
-  CheckCircle,
-  AlertCircle,
-  XCircle
+  Building2,
+  BarChart3,
+  Target,
+  Award
 } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-const getStatusIcon = (status: string) => {
-  switch (status.toLowerCase()) {
-    case 'concluida':
-    case 'concluído':
-    case 'completed':
-      return <CheckCircle className="h-3 w-3 text-green-500" />;
-    case 'processando':
-    case 'processing':
-      return <AlertCircle className="h-3 w-3 text-yellow-500" />;
-    case 'erro':
-    case 'error':
-      return <XCircle className="h-3 w-3 text-red-500" />;
-    default:
-      return <Clock className="h-3 w-3 text-gray-500" />;
-  }
-};
-
-const getStatusText = (status: string) => {
-  switch (status.toLowerCase()) {
-    case 'concluida':
-      return 'Concluída';
-    case 'processando':
-      return 'Processando';
-    case 'erro':
-      return 'Erro';
-    default:
-      return status;
-  }
-};
 
 export const Overview = () => {
-  const filters = useFilters();
-  
-  // Fetch data using real hooks with filters
-  const { data: allLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime({
-    niche: filters.selectedNiche,
-    city: filters.selectedCity,
-    status: filters.status,
-    dateRange: filters.dateRange
-  });
-  const { data: recentLeads = [], isLoading: recentLeadsLoading } = useLeadsByDateRange(filters.dateRange);
-  const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(10);
+  const {
+    selectedNiche,
+    selectedCity,
+    dateRange,
+    status
+  } = useFilters();
 
-  // Calculate KPIs from real data
-  const totalLeads = allLeads.length;
-  const recentLeadsCount = recentLeads.length;
-  const averageScore = allLeads.length > 0 
-    ? (allLeads.reduce((sum, lead) => sum + lead.score, 0) / allLeads.length).toFixed(1)
-    : '0.0';
-  
-  // Calculate trends (simplified - comparing last 30 days vs previous 30 days)
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  
-  const last30DaysLeads = allLeads.filter(lead => 
-    new Date(lead.created_at) >= thirtyDaysAgo
+  const { data: allLeads = [], isLoading } = useLeadsWithRealtime({
+    niche: selectedNiche,
+    city: selectedCity,
+    status,
+    dateRange
+  });
+
+  // Use enhanced lead scoring
+  const { scoredLeads, scoringStats } = useLeadScoring(allLeads);
+
+  // Calculate KPIs with improved scoring
+  const totalLeads = scoredLeads.length;
+  const contactedLeads = scoredLeads.filter(lead => 
+    !['novo', 'perdido'].includes(lead.status.toLowerCase())
   ).length;
-  
-  const previousPeriodStart = new Date();
-  previousPeriodStart.setDate(previousPeriodStart.getDate() - 60);
-  
-  const previous30DaysLeads = allLeads.filter(lead => {
-    const createdAt = new Date(lead.created_at);
-    return createdAt >= previousPeriodStart && createdAt < thirtyDaysAgo;
-  }).length;
-  
-  const leadsTrend = previous30DaysLeads > 0 
-    ? ((last30DaysLeads - previous30DaysLeads) / previous30DaysLeads * 100).toFixed(1)
-    : '0';
+  const convertedLeads = scoredLeads.filter(lead => 
+    lead.status.toLowerCase() === 'convertido'
+  ).length;
+  const averageScore = scoringStats?.avgScore || 0;
+
+  // High-quality leads (score >= 7)
+  const highQualityLeads = scoredLeads.filter(lead => lead.score >= 7).length;
+  const highQualityPercentage = totalLeads > 0 ? (highQualityLeads / totalLeads) * 100 : 0;
+
+  // Contact information completeness
+  const leadsWithPhone = scoredLeads.filter(lead => lead.phone && lead.phone.trim()).length;
+  const leadsWithEmail = scoredLeads.filter(lead => lead.email && lead.email.trim()).length;
+  const completeContacts = scoredLeads.filter(lead => 
+    lead.phone && lead.phone.trim() && lead.email && lead.email.trim()
+  ).length;
+
+  // Conversion metrics
+  const conversionRate = totalLeads > 0 ? (convertedLeads / totalLeads) * 100 : 0;
+  const contactRate = totalLeads > 0 ? (contactedLeads / totalLeads) * 100 : 0;
+
+  // Recent activity
+  const recentLeads = scoredLeads
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 5);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground">Carregando dados...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Visão Geral</h1>
+        <h1 className="text-3xl font-bold">Dashboard - Analytics Avançado</h1>
         <p className="text-muted-foreground">
-          Acompanhe seus principais indicadores de geração de leads
+          Acompanhe seus principais indicadores com análises avançadas e scoring inteligente
         </p>
       </div>
 
       {/* Global Filters */}
       <FilterBar />
 
-      {/* KPIs Row */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* KPIs principais */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <KPICard
           title="Total de Leads"
-          value={leadsLoading ? "..." : totalLeads.toLocaleString('pt-BR')}
-          trend={{
-            value: parseFloat(leadsTrend),
-            isPositive: parseFloat(leadsTrend) >= 0,
-            period: "últimos 30 dias"
-          }}
-          icon={<Users className="h-4 w-4" />}
-          description="Leads gerados no período"
-        />
-        <KPICard
-          title="Leads Recentes"
-          value={recentLeadsLoading ? "..." : recentLeadsCount.toLocaleString('pt-BR')}
+          value={totalLeads.toLocaleString('pt-BR')}
           trend={{
             value: 0,
             isPositive: true,
-            period: `últimos ${filters.dateRange} dias`
+            period: "período anterior"
           }}
-          icon={<Target className="h-4 w-4" />}
-          description="Leads no período selecionado"
+          icon={<Users className="h-4 w-4" />}
+          description="Leads captados no período"
+        />
+        <KPICard
+          title="Alta Qualidade"
+          value={highQualityLeads.toLocaleString('pt-BR')}
+          trend={{
+            value: 0,
+            isPositive: true,
+            period: "período anterior"
+          }}
+          icon={<Award className="h-4 w-4" />}
+          description={`${highQualityPercentage.toFixed(1)}% do total (score ≥ 7)`}
+        />
+        <KPICard
+          title="Taxa de Contato"
+          value={`${contactRate.toFixed(1)}%`}
+          trend={{
+            value: 0,
+            isPositive: true,
+            period: "período anterior"
+          }}
+          icon={<Phone className="h-4 w-4" />}
+          description="Leads que responderam"
+        />
+        <KPICard
+          title="Taxa de Conversão"
+          value={`${conversionRate.toFixed(1)}%`}
+          trend={{
+            value: 0,
+            isPositive: true,
+            period: "período anterior"
+          }}
+          icon={<UserCheck className="h-4 w-4" />}
+          description="Leads convertidos em clientes"
         />
         <KPICard
           title="Score Médio"
-          value={leadsLoading ? "..." : averageScore}
+          value={averageScore.toFixed(1)}
           trend={{
             value: 0,
             isPositive: true,
-            period: "último mês"
+            period: "período anterior"
           }}
-          icon={<TrendingUp className="h-4 w-4" />}
-          description="Qualidade dos leads"
+          icon={<Star className="h-4 w-4" />}
+          description="Qualidade média dos leads"
         />
-        <KPICard
-          title="Buscas Realizadas"
-          value={searchesLoading ? "..." : recentSearches.length.toString()}
-          trend={{
-            value: 0,
-            isPositive: true,
-            period: "últimas buscas"
-          }}
-          icon={<Search className="h-4 w-4" />}
-          description="Total de buscas recentes"
+      </div>
+
+      {/* Advanced Analytics Charts */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <LeadTrendChart 
+          leads={scoredLeads} 
+          days={dateRange}
+          title="Tendência de Leads e Conversões"
+          showComparison={true}
         />
+        <ScoreDistributionChart 
+          leads={scoredLeads} 
+          type="bar"
+          title="Distribuição de Qualidade"
+        />
+      </div>
+
+      {/* Conversion Funnel */}
+      <ConversionFunnelChart 
+        leads={scoredLeads}
+        title="Análise do Funil de Conversão" 
+        showDropRates={true}
+      />
+
+      {/* Métricas Secundárias */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <Phone className="h-4 w-4 mr-2" />
+            Informações de Contato
+          </h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Com telefone</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{leadsWithPhone}</span>
+                <span className="text-xs text-muted-foreground">
+                  ({totalLeads > 0 ? ((leadsWithPhone / totalLeads) * 100).toFixed(1) : 0}%)
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Com email</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{leadsWithEmail}</span>
+                <span className="text-xs text-muted-foreground">
+                  ({totalLeads > 0 ? ((leadsWithEmail / totalLeads) * 100).toFixed(1) : 0}%)
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Contato completo</span>
+              <div className="flex items-center gap-2">
+                <span className="font-medium">{completeContacts}</span>
+                <span className="text-xs text-muted-foreground">
+                  ({totalLeads > 0 ? ((completeContacts / totalLeads) * 100).toFixed(1) : 0}%)
+                </span>
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <Target className="h-4 w-4 mr-2" />
+            Métricas de Qualidade
+          </h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Score médio</span>
+              <span className="font-medium">{averageScore.toFixed(1)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Alta qualidade</span>
+              <span className="font-medium">{highQualityPercentage.toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Score máximo</span>
+              <span className="font-medium">
+                {scoringStats?.maxScore?.toFixed(1) || '0'}
+              </span>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Performance Geral
+          </h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Taxa de contato</span>
+              <span className="font-medium">{contactRate.toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Taxa de conversão</span>
+              <span className="font-medium">{conversionRate.toFixed(1)}%</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm">Leads por dia</span>
+              <span className="font-medium">
+                {(totalLeads / dateRange).toFixed(1)}
+              </span>
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Recent Activity */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">
-            <Users className="h-4 w-4 inline mr-2" />
-            Leads Recentes
-          </h3>
-          {recentLeadsLoading ? (
-            <p className="text-muted-foreground">Carregando leads...</p>
-          ) : recentLeads.length === 0 ? (
-            <p className="text-muted-foreground">Nenhum lead encontrado no período.</p>
+      <Card className="p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center">
+          <Building2 className="h-4 w-4 mr-2" />
+          Leads Recentes de Alta Qualidade
+        </h3>
+        <div className="space-y-3">
+          {recentLeads.filter(lead => lead.score >= 7).length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum lead de alta qualidade recente</p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Negócio</TableHead>
-                  <TableHead>Cidade</TableHead>
-                  <TableHead>Data</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentLeads.slice(0, 5).map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium">{lead.name}</TableCell>
-                    <TableCell>{lead.business}</TableCell>
-                    <TableCell>{lead.city}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Calendar className="h-3 w-3 mr-1" />
-                        {format(new Date(lead.created_at), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            recentLeads
+              .filter(lead => lead.score >= 7)
+              .slice(0, 8)
+              .map((lead) => (
+                <div key={lead.id} className="flex items-center justify-between text-sm p-3 rounded-lg border">
+                  <div className="flex-1">
+                    <p className="font-medium">{lead.name}</p>
+                    <p className="text-muted-foreground text-xs">{lead.business} • {lead.city}</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded font-medium">
+                      Score: {lead.score}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {lead.niche || 'N/A'}
+                    </span>
+                  </div>
+                </div>
+              ))
           )}
-        </Card>
-
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">
-            <Search className="h-4 w-4 inline mr-2" />
-            Buscas Recentes
-          </h3>
-          {searchesLoading ? (
-            <p className="text-muted-foreground">Carregando buscas...</p>
-          ) : recentSearches.length === 0 ? (
-            <p className="text-muted-foreground">Nenhuma busca encontrada.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nicho</TableHead>
-                  <TableHead>Cidade</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Leads</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentSearches.slice(0, 5).map((search) => (
-                  <TableRow key={search.id}>
-                    <TableCell className="font-medium">{search.niche}</TableCell>
-                    <TableCell>{search.city}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        {getStatusIcon(search.status)}
-                        <span className="ml-2">{getStatusText(search.status)}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">{search.total_leads}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>
   );
 };
