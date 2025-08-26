@@ -80,12 +80,12 @@ export const FilterBar = () => {
         <span className="text-sm font-medium">Filtros:</span>
       </div>
 
-      <Select value={selectedNiche || ""} onValueChange={(value) => setNiche(value || undefined)}>
+      <Select value={selectedNiche || "all"} onValueChange={(value) => setNiche(value === "all" ? undefined : value)}>
         <SelectTrigger className="w-[180px]">
           <SelectValue placeholder="Nicho" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Todos os nichos</SelectItem>
+          <SelectItem value="all">Todos os nichos</SelectItem>
           {nicheOptions.map((niche) => (
             <SelectItem key={niche} value={niche}>
               {niche}
@@ -94,12 +94,12 @@ export const FilterBar = () => {
         </SelectContent>
       </Select>
 
-      <Select value={selectedCity || ""} onValueChange={(value) => setCity(value || undefined)}>
+      <Select value={selectedCity || "all"} onValueChange={(value) => setCity(value === "all" ? undefined : value)}>
         <SelectTrigger className="w-[180px]">
           <SelectValue placeholder="Cidade" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Todas as cidades</SelectItem>
+          <SelectItem value="all">Todas as cidades</SelectItem>
           {cityOptions.map((city) => (
             <SelectItem key={city} value={city}>
               {city}
@@ -108,12 +108,12 @@ export const FilterBar = () => {
         </SelectContent>
       </Select>
 
-      <Select value={status || ""} onValueChange={(value) => setStatus(value || undefined)}>
+      <Select value={status || "all"} onValueChange={(value) => setStatus(value === "all" ? undefined : value)}>
         <SelectTrigger className="w-[150px]">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="">Todos os status</SelectItem>
+          <SelectItem value="all">Todos os status</SelectItem>
           {statusOptions.map((option) => (
             <SelectItem key={option.value} value={option.value}>
               {option.label}
