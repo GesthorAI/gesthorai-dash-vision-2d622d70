@@ -4,4 +4,4 @@ project_id = "xpgazdzcbtjqivbsunvh"
 verify_jwt = false
 
 [functions.start-search]
-verify_jwt = false
+verify_jwt = true

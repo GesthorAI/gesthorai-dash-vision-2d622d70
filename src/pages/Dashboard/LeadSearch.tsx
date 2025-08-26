@@ -74,24 +74,14 @@ export const LeadSearch = () => {
     setIsSearching(true);
 
     try {
-      // Create search record first
-      const searchResult = await createSearch.mutateAsync({
-        niche: nicho,
-        city: cidade,
-        status: "processando",
-        total_leads: 0,
-        webhook_id: `webhook_${Date.now()}`
-      });
-
       // Get the current session token for authorization
       if (!session?.access_token) {
         throw new Error("No authentication token available");
       }
 
-      // Call start-search Edge Function with authorization
+      // Call start-search Edge Function - it will create the search record and handle n8n
       const { data, error } = await supabase.functions.invoke('start-search', {
         body: {
-          search_id: searchResult.id,
           niche: nicho,
           city: cidade
         },
