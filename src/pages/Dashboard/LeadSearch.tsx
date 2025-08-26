@@ -1,12 +1,17 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Search, CheckCircle, AlertCircle, XCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Plus, Clock, CheckCircle, AlertCircle } from "lucide-react";
+import { useRecentSearches, useCreateSearch } from "@/hooks/useSearches";
+import { useLeadsByDateRange } from "@/hooks/useLeads";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 // Mock data
 const mockNichos = [
@@ -34,35 +39,43 @@ const mockRecentLeads = [
 export const LeadSearch = () => {
   const [selectedNicho, setSelectedNicho] = useState<string>("");
   const [selectedCidade, setSelectedCidade] = useState<string>("");
-  const [newNicho, setNewNicho] = useState<string>("");
-  const [newCidade, setNewCidade] = useState<string>("");
+  const [newNicho, setNewNicho] = useState("");
+  const [newCidade, setNewCidade] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const { toast } = useToast();
 
+  // Fetch real data
+  const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(20);
+  const { data: recentLeads = [], isLoading: leadsLoading } = useLeadsByDateRange(1);
+  const createSearch = useCreateSearch();
+
   const handleSearch = async () => {
-    console.log('[BuscaLeads] Iniciando busca...');
-    
-    const nicho = newNicho || selectedNicho;
-    const cidade = newCidade || selectedCidade;
+    const nicho = newNicho.trim() || selectedNicho;
+    const cidade = newCidade.trim() || selectedCidade;
     
     if (!nicho || !cidade) {
       toast({
         title: "Campos obrigatórios",
-        description: "Selecione ou digite um nicho e uma cidade",
-        variant: "destructive",
+        description: "Por favor, selecione ou digite um nicho e uma cidade.",
+        variant: "destructive"
       });
       return;
     }
 
     setIsSearching(true);
-    
+
     try {
-      console.log('[BuscaLeads] Dados da busca:', { nicho, cidade });
-      
-      // GesthorAI webhook URL
-      const webhookUrl = "https://webhook.gesthorai.com.br/webhook/leads-data";
-      
-      const response = await fetch(webhookUrl, {
+      // First, save to database
+      await createSearch.mutateAsync({
+        niche: nicho,
+        city: cidade,
+        status: "processando",
+        total_leads: 0,
+        webhook_id: `webhook_${Date.now()}`
+      });
+
+      // Then call existing webhook (mantém o webhook original)
+      const response = await fetch("https://webhook.gesthorai.com.br/webhook/leads-data", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -73,25 +86,26 @@ export const LeadSearch = () => {
         }),
       });
 
-      console.log('[BuscaLeads] Resposta do webhook:', response.status);
-      
-      toast({
-        title: "Busca iniciada!",
-        description: `Buscando leads para ${nicho} em ${cidade}. Você será notificado quando concluir.`,
-      });
-      
-      // Clear form
-      setSelectedNicho("");
-      setSelectedCidade("");
-      setNewNicho("");
-      setNewCidade("");
-      
+      if (response.ok) {
+        toast({
+          title: "Busca iniciada!",
+          description: `Buscando leads para ${nicho} em ${cidade}. Você será notificado quando concluir.`,
+        });
+        
+        // Reset form
+        setSelectedNicho("");
+        setSelectedCidade("");
+        setNewNicho("");
+        setNewCidade("");
+      } else {
+        throw new Error("Erro na requisição");
+      }
     } catch (error) {
-      console.error('[BuscaLeads] Erro na busca:', error);
+      console.error("Erro ao enviar busca:", error);
       toast({
         title: "Erro na busca",
         description: "Não foi possível iniciar a busca. Tente novamente.",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setIsSearching(false);
@@ -151,15 +165,12 @@ export const LeadSearch = () => {
               </SelectContent>
             </Select>
             
-            <div className="flex items-center gap-2 mt-2">
-              <Plus className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Ou digite um novo nicho"
-                value={newNicho}
-                onChange={(e) => setNewNicho(e.target.value)}
-                className="flex-1"
-              />
-            </div>
+            <Input
+              placeholder="Ou digite um novo nicho"
+              value={newNicho}
+              onChange={(e) => setNewNicho(e.target.value)}
+              className="mt-2"
+            />
           </div>
 
           <div className="space-y-2">
@@ -177,15 +188,12 @@ export const LeadSearch = () => {
               </SelectContent>
             </Select>
             
-            <div className="flex items-center gap-2 mt-2">
-              <Plus className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Ou digite uma nova cidade"
-                value={newCidade}
-                onChange={(e) => setNewCidade(e.target.value)}
-                className="flex-1"
-              />
-            </div>
+            <Input
+              placeholder="Ou digite uma nova cidade"
+              value={newCidade}
+              onChange={(e) => setNewCidade(e.target.value)}
+              className="mt-2"
+            />
           </div>
         </div>
 
@@ -213,54 +221,75 @@ export const LeadSearch = () => {
         {/* Recent Searches */}
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-4">Buscas Recentes</h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Status</TableHead>
-                <TableHead>Nicho</TableHead>
-                <TableHead>Cidade</TableHead>
-                <TableHead>Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockRecentSearches.map((search) => (
-                <TableRow key={search.id}>
-                  <TableCell className="flex items-center gap-2">
-                    {getStatusIcon(search.status)}
-                    <span className="text-sm">{getStatusText(search.status)}</span>
-                  </TableCell>
-                  <TableCell>{search.nicho}</TableCell>
-                  <TableCell>{search.cidade}</TableCell>
-                  <TableCell className="font-medium">{search.total}</TableCell>
+          {searchesLoading ? (
+            <p className="text-muted-foreground">Carregando buscas...</p>
+          ) : recentSearches.length === 0 ? (
+            <p className="text-muted-foreground">Nenhuma busca encontrada.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Nicho</TableHead>
+                  <TableHead>Cidade</TableHead>
+                  <TableHead>Total</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {recentSearches.map((search) => (
+                  <TableRow key={search.id}>
+                    <TableCell className="flex items-center gap-2">
+                      {getStatusIcon(search.status)}
+                      <span className="text-sm">{getStatusText(search.status)}</span>
+                    </TableCell>
+                    <TableCell>{search.niche}</TableCell>
+                    <TableCell>{search.city}</TableCell>
+                    <TableCell className="font-medium">
+                      <Badge variant="secondary">{search.total_leads}</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </Card>
 
-        {/* Recent Leads Added */}
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-4">Leads Adicionados (24h)</h2>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Negócio</TableHead>
-                <TableHead>Cidade</TableHead>
-                <TableHead>Horário</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockRecentLeads.map((lead, index) => (
-                <TableRow key={index}>
-                  <TableCell className="font-medium">{lead.nome}</TableCell>
-                  <TableCell>{lead.negocio}</TableCell>
-                  <TableCell>{lead.cidade}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{lead.timestamp}</TableCell>
+          {leadsLoading ? (
+            <p className="text-muted-foreground">Carregando leads...</p>
+          ) : recentLeads.length === 0 ? (
+            <p className="text-muted-foreground">Nenhum lead encontrado nas últimas 24h.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Negócio</TableHead>
+                  <TableHead>Cidade</TableHead>
+                  <TableHead>Score</TableHead>
+                  <TableHead>Horário</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {recentLeads.map((lead) => (
+                  <TableRow key={lead.id}>
+                    <TableCell className="font-medium">{lead.name}</TableCell>
+                    <TableCell>{lead.business}</TableCell>
+                    <TableCell>{lead.city}</TableCell>
+                    <TableCell>
+                      <Badge variant={lead.score >= 7 ? "default" : lead.score >= 4 ? "secondary" : "destructive"}>
+                        {lead.score}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {format(new Date(lead.created_at), 'HH:mm', { locale: ptBR })}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </Card>
       </div>
     </div>

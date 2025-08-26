@@ -2,28 +2,11 @@ import { useState } from "react";
 import { DashboardLayout } from "@/components/Layout/DashboardLayout";
 import { Overview } from "@/pages/Dashboard/Overview";
 import { LeadSearch } from "@/pages/Dashboard/LeadSearch";
+import { Funnel } from "@/pages/Dashboard/Funnel";
+import { Quality } from "@/pages/Dashboard/Quality";
+import { Operations } from "@/pages/Dashboard/Operations";
 
-// Placeholder components for other pages
-const Funnel = () => (
-  <div className="space-y-6">
-    <h1 className="text-3xl font-bold">Funil</h1>
-    <p className="text-muted-foreground">Análise do funil de conversão - Em desenvolvimento</p>
-  </div>
-);
-
-const Quality = () => (
-  <div className="space-y-6">
-    <h1 className="text-3xl font-bold">Qualidade & Score</h1>
-    <p className="text-muted-foreground">Análise de qualidade dos leads - Em desenvolvimento</p>
-  </div>
-);
-
-const Operations = () => (
-  <div className="space-y-6">
-    <h1 className="text-3xl font-bold">Operacional</h1>
-    <p className="text-muted-foreground">Visão operacional e próximas ações - Em desenvolvimento</p>
-  </div>
-);
+// Placeholder components for other pages are now replaced with real implementations
 
 const Index = () => {
   const [currentPage, setCurrentPage] = useState("overview");
