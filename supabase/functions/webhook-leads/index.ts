@@ -19,7 +19,7 @@ interface LeadData {
 
 interface WebhookPayload {
   search_id: string;
-  status: 'completed' | 'failed' | 'processando';
+  status: 'concluida' | 'falhou' | 'processando';
   leads?: LeadData[];
   total_leads?: number;
   webhook_id?: string;
@@ -107,8 +107,8 @@ serve(async (req) => {
     
     console.log('Search updated successfully');
     
-    // Insert leads if provided and status is completed
-    if (leads.length > 0 && status === 'completed') {
+    // Insert leads if provided and status is concluida
+    if (leads.length > 0 && status === 'concluida') {
       console.log(`Inserting ${leads.length} leads`);
       
       // Prepare leads data with search_id and defaults
@@ -140,7 +140,7 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: `Search ${search_id} updated to ${status}`,
-        leads_inserted: status === 'completed' ? leads.length : 0
+        leads_inserted: status === 'concluida' ? leads.length : 0
       }),
       { 
         status: 200, 

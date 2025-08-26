@@ -108,7 +108,7 @@ serve(async (req) => {
       // Update search status to failed
       await supabase
         .from('searches')
-        .update({ status: 'failed' })
+        .update({ status: 'falhou' })
         .eq('id', finalSearchId);
         
       return new Response(

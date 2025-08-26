@@ -127,6 +127,8 @@ export const LeadSearch = () => {
         return <CheckCircle className="h-4 w-4 text-success" />;
       case "processando":
         return <Clock className="h-4 w-4 text-warning" />;
+      case "falhou":
+        return <AlertCircle className="h-4 w-4 text-destructive" />;
       default:
         return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
     }
@@ -138,8 +140,10 @@ export const LeadSearch = () => {
         return "Concluída";
       case "processando":
         return "Processando";
+      case "falhou":
+        return "Falhou";
       default:
-        return "Erro";
+        return "Desconhecido";
     }
   };
 

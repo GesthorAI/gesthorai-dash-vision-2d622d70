@@ -112,7 +112,7 @@ export const Operations = () => {
 
   // Failed/stuck searches
   const failedSearches = recentSearches.filter(search =>
-    ['erro', 'error', 'failed'].includes(search.status.toLowerCase())
+    ['falhou', 'erro', 'error', 'failed'].includes(search.status.toLowerCase())
   );
 
   // Processing searches (taking too long)
