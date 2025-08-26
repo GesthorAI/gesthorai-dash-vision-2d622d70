@@ -34,6 +34,18 @@ serve(async (req) => {
   try {
     console.log('Webhook received:', req.method);
     
+    // Validate webhook token
+    const webhookToken = req.headers.get('x-webhook-token');
+    const expectedToken = Deno.env.get('WEBHOOK_SHARED_TOKEN');
+    
+    if (!webhookToken || webhookToken !== expectedToken) {
+      console.error('Invalid or missing webhook token');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     // Initialize Supabase client
     const supabaseUrl = 'https://xpgazdzcbtjqivbsunvh.supabase.co';
     const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwZ2F6ZHpjYnRqcWl2YnN1bnZoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMjYxODksImV4cCI6MjA3MTcwMjE4OX0.59lJ1yOZr4D0tcSgxSAtGQiYb2FT3q_LUooNOaCG67o';

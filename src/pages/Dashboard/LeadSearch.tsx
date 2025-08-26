@@ -69,7 +69,7 @@ export const LeadSearch = () => {
     setIsSearching(true);
 
     try {
-      // First, save to database
+      // Create search record first
       const searchResult = await createSearch.mutateAsync({
         niche: nicho,
         city: cidade,
@@ -78,39 +78,26 @@ export const LeadSearch = () => {
         webhook_id: `webhook_${Date.now()}`
       });
 
-      // Then call the new webhook system
-      const webhookUrl = `https://xpgazdzcbtjqivbsunvh.supabase.co/functions/v1/webhook-leads`;
+      // Now call start-search Edge Function to queue the search with n8n
+      const startSearchUrl = `https://xpgazdzcbtjqivbsunvh.supabase.co/functions/v1/start-search`;
       
-      // Simulate external API response (replace with actual external API integration)
-      setTimeout(async () => {
-        try {
-          await fetch(webhookUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              search_id: searchResult.id,
-              status: "completed",
-              total_leads: Math.floor(Math.random() * 50) + 10, // Simulated count
-              leads: [
-                // Simulated leads data - replace with real data
-                {
-                  name: "João Silva",
-                  business: `${nicho} Premium`,
-                  city: cidade,
-                  phone: "11999999999",
-                  email: "joao@example.com",
-                  niche: nicho,
-                  score: Math.floor(Math.random() * 10) + 1
-                }
-              ]
-            }),
-          });
-        } catch (error) {
-          console.error("Error calling webhook:", error);
-        }
-      }, 2000); // 2 second delay to simulate processing
+      const response = await fetch(startSearchUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          search_id: searchResult.id,
+          niche: nicho,
+          city: cidade
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
 
       toast({
         title: "Busca iniciada!",
