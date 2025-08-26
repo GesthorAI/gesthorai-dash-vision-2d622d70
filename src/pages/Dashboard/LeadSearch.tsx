@@ -6,12 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, CheckCircle, AlertCircle, XCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRecentSearches, useCreateSearch } from "@/hooks/useSearches";
 import { useLeadsByDateRange } from "@/hooks/useLeads";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { AdvancedSearchForm } from "@/components/Search/AdvancedSearchForm";
+import { LeadCaptureForm } from "@/components/Search/LeadCaptureForm";
+import { ImportExportPanel } from "@/components/Search/ImportExportPanel";
 
 // Mock data
 const mockNichos = [
@@ -156,9 +160,21 @@ export const LeadSearch = () => {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Busca de Leads</h1>
-        <p className="text-muted-foreground">Configure e inicie uma nova busca de leads</p>
+        <h1 className="text-3xl font-bold text-foreground">Busca e Captura de Leads</h1>
+        <p className="text-muted-foreground">
+          Centro completo para busca, captura e importação de leads
+        </p>
       </div>
+
+      <Tabs defaultValue="simple-search" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="simple-search">Busca Simples</TabsTrigger>
+          <TabsTrigger value="advanced-search">Busca Avançada</TabsTrigger>
+          <TabsTrigger value="manual-capture">Cadastro Manual</TabsTrigger>
+          <TabsTrigger value="import-export">Importar/Exportar</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="simple-search" className="space-y-6">
 
       {/* Search Form */}
       <Card className="p-6">
@@ -310,6 +326,25 @@ export const LeadSearch = () => {
           )}
         </Card>
       </div>
+        </TabsContent>
+
+        <TabsContent value="advanced-search" className="space-y-6">
+          <AdvancedSearchForm onSearchStart={(filters) => {
+            toast({
+              title: "Busca avançada configurada",
+              description: `Filtros aplicados para ${filters.niche} em ${filters.city}`,
+            });
+          }} />
+        </TabsContent>
+
+        <TabsContent value="manual-capture" className="space-y-6">
+          <LeadCaptureForm />
+        </TabsContent>
+
+        <TabsContent value="import-export" className="space-y-6">
+          <ImportExportPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
