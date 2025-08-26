@@ -1,296 +1,234 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { KPICard } from "@/components/Dashboard/KPICard";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { LeadsTable } from "@/components/Leads/LeadsTable";
+import { LeadScoreCard } from "@/components/Leads/LeadScoreCard";
+import { QuickActions } from "@/components/Leads/QuickActions";
+import { ScoreDistributionChart } from "@/components/Charts/ScoreDistributionChart";
 import { useLeads } from "@/hooks/useLeads";
-import { 
-  Star, 
-  TrendingUp, 
-  AlertTriangle, 
-  CheckCircle,
-  Users,
-  Target,
-  Award,
-  BarChart3
-} from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-const ScoreBadge = ({ score }: { score: number }) => {
-  if (score >= 8) return <Badge className="bg-green-500">Excelente</Badge>;
-  if (score >= 6) return <Badge className="bg-yellow-500">Bom</Badge>;
-  if (score >= 4) return <Badge variant="secondary">Regular</Badge>;
-  return <Badge variant="destructive">Baixo</Badge>;
-};
-
-const QualityBar = ({ label, value, color, target }: {
-  label: string;
-  value: number;
-  color: string;
-  target?: number;
-}) => (
-  <div className="space-y-2">
-    <div className="flex justify-between items-center">
-      <span className="text-sm font-medium">{label}</span>
-      <span className="text-sm text-muted-foreground">
-        {value.toFixed(1)}%
-        {target && ` / ${target}%`}
-      </span>
-    </div>
-    <Progress value={value} className="h-2" style={{ '--progress-foreground': color } as any} />
-    {target && value >= target && (
-      <div className="flex items-center text-xs text-green-600">
-        <CheckCircle className="h-3 w-3 mr-1" />
-        Meta atingida
-      </div>
-    )}
-  </div>
-);
+import { useLeadScoring } from "@/hooks/useLeadScoring";
+import { Star, TrendingUp, Users, Target, Filter, Search } from "lucide-react";
 
 export const Quality = () => {
-  const { data: allLeads = [], isLoading } = useLeads();
+  const { data: leads = [], refetch } = useLeads();
+  const { scoredLeads, scoringStats } = useLeadScoring(leads);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [scoreFilter, setScoreFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [selectedLead, setSelectedLead] = useState<any>(null);
 
-  // Calculate quality metrics
-  const totalLeads = allLeads.length;
-  const averageScore = totalLeads > 0 
-    ? allLeads.reduce((sum, lead) => sum + lead.score, 0) / totalLeads 
-    : 0;
+  // Filter leads based on search and filters
+  const filteredLeads = scoredLeads.filter(lead => {
+    const matchesSearch = !searchTerm || 
+      lead.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.business?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesScore = scoreFilter === "all" || 
+      (scoreFilter === "high" && lead.score >= 7) ||
+      (scoreFilter === "medium" && lead.score >= 4 && lead.score < 7) ||
+      (scoreFilter === "low" && lead.score < 4);
+    
+    const matchesStatus = statusFilter === "all" || lead.status === statusFilter;
+    
+    return matchesSearch && matchesScore && matchesStatus;
+  });
 
-  // Score distribution
-  const excellentLeads = allLeads.filter(lead => lead.score >= 8).length;
-  const goodLeads = allLeads.filter(lead => lead.score >= 6 && lead.score < 8).length;
-  const regularLeads = allLeads.filter(lead => lead.score >= 4 && lead.score < 6).length;
-  const poorLeads = allLeads.filter(lead => lead.score < 4).length;
-
-  // Quality percentages
-  const excellentPerc = totalLeads > 0 ? (excellentLeads / totalLeads) * 100 : 0;
-  const goodPerc = totalLeads > 0 ? (goodLeads / totalLeads) * 100 : 0;
-  const regularPerc = totalLeads > 0 ? (regularLeads / totalLeads) * 100 : 0;
-  const poorPerc = totalLeads > 0 ? (poorLeads / totalLeads) * 100 : 0;
-
-  // Quality by source/niche
-  const qualityByNiche = allLeads.reduce((acc, lead) => {
-    const niche = lead.niche || 'Não definido';
-    if (!acc[niche]) {
-      acc[niche] = { total: 0, scoreSum: 0 };
-    }
-    acc[niche].total++;
-    acc[niche].scoreSum += lead.score;
-    return acc;
-  }, {} as Record<string, { total: number; scoreSum: number }>);
-
-  const nicheQuality = Object.entries(qualityByNiche)
-    .map(([niche, data]) => ({
-      niche,
-      avgScore: data.scoreSum / data.total,
-      count: data.total,
-      percentage: (data.total / totalLeads) * 100
-    }))
-    .sort((a, b) => b.avgScore - a.avgScore)
-    .slice(0, 10);
-
-  // Recent high-quality leads
-  const highQualityLeads = allLeads
-    .filter(lead => lead.score >= 7)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 10);
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Qualidade & Score</h1>
-        <p className="text-muted-foreground">Carregando dados de qualidade...</p>
-      </div>
-    );
-  }
+  const highQualityLeads = scoredLeads.filter(lead => lead.score >= 7).length;
+  const qualifiedLeads = scoredLeads.filter(lead => 
+    ["qualificado", "agendado", "convertido"].includes(lead.status.toLowerCase())
+  ).length;
+  const conversionRate = scoredLeads.length > 0 ? 
+    (scoredLeads.filter(lead => lead.status === "convertido").length / scoredLeads.length) * 100 : 0;
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Qualidade & Score</h1>
+        <h1 className="text-3xl font-bold">Qualidade dos Leads</h1>
         <p className="text-muted-foreground">
-          Análise da qualidade dos leads e distribuição de scores
+          Analise e gerencie a qualidade dos seus leads com scoring inteligente
         </p>
       </div>
 
-      {/* KPIs principais */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title="Score Médio Geral"
-          value={averageScore.toFixed(1)}
-          trend={{
-            value: 0,
-            isPositive: true,
-            period: "período anterior"
-          }}
-          icon={<Star className="h-4 w-4" />}
-          description="Média de todos os leads"
-        />
-        <KPICard
-          title="Leads de Alta Qualidade"
-          value={excellentLeads.toString()}
-          trend={{
-            value: 0,
-            isPositive: true,
-            period: "período anterior"
-          }}
-          icon={<Award className="h-4 w-4" />}
-          description="Score ≥ 8"
-        />
-        <KPICard
-          title="Taxa de Qualidade"
-          value={`${excellentPerc.toFixed(1)}%`}
-          trend={{
-            value: 0,
-            isPositive: true,
-            period: "período anterior"
-          }}
-          icon={<Target className="h-4 w-4" />}
-          description="% de leads excelentes"
-        />
-        <KPICard
-          title="Melhor Nicho"
-          value={nicheQuality[0]?.niche.substring(0, 10) + '...' || 'N/A'}
-          trend={{
-            value: 0,
-            isPositive: true,
-            period: "período anterior"
-          }}
-          icon={<TrendingUp className="h-4 w-4" />}
-          description={`Score: ${nicheQuality[0]?.avgScore.toFixed(1) || 'N/A'}`}
-        />
+      {/* Quality Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Star className="h-4 w-4 text-yellow-500" />
+            <span className="text-sm font-medium">Score Médio</span>
+          </div>
+          <div className="text-2xl font-bold">
+            {scoringStats?.avgScore.toFixed(1) || "0.0"}
+          </div>
+          <div className="flex items-center gap-1 text-sm text-green-600">
+            <TrendingUp className="h-3 w-3" />
+            Score de {scoringStats?.minScore || 0} a {scoringStats?.maxScore || 0}
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="h-4 w-4 text-green-500" />
+            <span className="text-sm font-medium">Alta Qualidade</span>
+          </div>
+          <div className="text-2xl font-bold">{highQualityLeads}</div>
+          <div className="text-sm text-muted-foreground">
+            {scoredLeads.length > 0 ? ((highQualityLeads / scoredLeads.length) * 100).toFixed(1) : 0}% do total
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Users className="h-4 w-4 text-blue-500" />
+            <span className="text-sm font-medium">Qualificados</span>
+          </div>
+          <div className="text-2xl font-bold">{qualifiedLeads}</div>
+          <div className="text-sm text-muted-foreground">
+            {scoredLeads.length > 0 ? ((qualifiedLeads / scoredLeads.length) * 100).toFixed(1) : 0}% do total
+          </div>
+        </Card>
+        
+        <Card className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <TrendingUp className="h-4 w-4 text-purple-500" />
+            <span className="text-sm font-medium">Taxa Conversão</span>
+          </div>
+          <div className="text-2xl font-bold">{conversionRate.toFixed(1)}%</div>
+          <div className="text-sm text-muted-foreground">
+            Leads → Clientes
+          </div>
+        </Card>
       </div>
 
-      {/* Distribuição de Score */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <BarChart3 className="h-4 w-4 mr-2" />
-            Distribuição de Qualidade
-          </h3>
-          <div className="space-y-4">
-            <QualityBar 
-              label="Excelente (8-10)" 
-              value={excellentPerc} 
-              color="#10B981" 
-              target={25} 
-            />
-            <QualityBar 
-              label="Bom (6-7)" 
-              value={goodPerc} 
-              color="#F59E0B" 
-              target={40} 
-            />
-            <QualityBar 
-              label="Regular (4-5)" 
-              value={regularPerc} 
-              color="#6B7280" 
-            />
-            <QualityBar 
-              label="Baixo (0-3)" 
-              value={poorPerc} 
-              color="#EF4444" 
+      {/* Filters and Search */}
+      <Card className="p-4">
+        <div className="flex flex-col lg:flex-row gap-4 items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input
+              placeholder="Buscar leads por nome, empresa ou email..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
             />
           </div>
           
-          <div className="mt-4 p-3 bg-muted rounded-lg">
-            <p className="text-sm font-medium mb-1">Resumo Atual:</p>
-            <p className="text-xs text-muted-foreground">
-              {excellentPerc >= 25 ? '✅' : '⚠️'} Meta de leads excelentes: {excellentPerc.toFixed(1)}% / 25%
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {(excellentPerc + goodPerc) >= 65 ? '✅' : '⚠️'} Leads de qualidade: {(excellentPerc + goodPerc).toFixed(1)}% / 65%
-            </p>
-          </div>
-        </Card>
+          <div className="flex gap-2">
+            <Select value={scoreFilter} onValueChange={setScoreFilter}>
+              <SelectTrigger className="w-[140px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Score" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="high">Alto (7+)</SelectItem>
+                <SelectItem value="medium">Médio (4-6)</SelectItem>
+                <SelectItem value="low">Baixo (&lt;4)</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Qualidade por Nicho</h3>
-          {nicheQuality.length === 0 ? (
-            <p className="text-muted-foreground">Dados insuficientes para análise por nicho.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nicho</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Leads</TableHead>
-                  <TableHead>%</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {nicheQuality.map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium max-w-[150px] truncate">
-                      {item.niche}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono">{item.avgScore.toFixed(1)}</span>
-                        <ScoreBadge score={item.avgScore} />
-                      </div>
-                    </TableCell>
-                    <TableCell>{item.count}</TableCell>
-                    <TableCell>{item.percentage.toFixed(1)}%</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="novo">Novo</SelectItem>
+                <SelectItem value="contatado">Contatado</SelectItem>
+                <SelectItem value="qualificado">Qualificado</SelectItem>
+                <SelectItem value="agendado">Agendado</SelectItem>
+                <SelectItem value="convertido">Convertido</SelectItem>
+                <SelectItem value="perdido">Perdido</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      </Card>
+
+      {/* Score Distribution Chart */}
+      <ScoreDistributionChart leads={scoredLeads} />
+
+      {/* Selected Lead Details */}
+      {selectedLead && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <LeadScoreCard lead={selectedLead} showBreakdown={true} />
+          <QuickActions 
+            lead={selectedLead} 
+            onLeadUpdate={() => {
+              refetch();
+              setSelectedLead(null);
+            }} 
+          />
+        </div>
+      )}
+
+      {/* Leads Table */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">
+            Leads ({filteredLeads.length})
+          </h3>
+          {selectedLead && (
+            <Button variant="outline" onClick={() => setSelectedLead(null)}>
+              Fechar Detalhes
+            </Button>
           )}
-        </Card>
+        </div>
+        
+        <div onClick={(e) => {
+          const target = e.target as HTMLElement;
+          const row = target.closest('tr');
+          if (row) {
+            const leadId = row.getAttribute('data-lead-id');
+            if (leadId) {
+              const lead = filteredLeads.find(l => l.id === leadId);
+              if (lead) setSelectedLead(lead);
+            }
+          }
+        }}>
+          <LeadsTable 
+            leads={filteredLeads}
+            onLeadsChange={refetch}
+            showActions={true}
+          />
+        </div>
       </div>
 
-      {/* Leads de Alta Qualidade */}
-      <Card className="p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center">
-          <Star className="h-4 w-4 mr-2" />
-          Leads de Alta Qualidade Recentes
-        </h3>
-        {highQualityLeads.length === 0 ? (
-          <div className="text-center py-8">
-            <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Nenhum lead de alta qualidade encontrado.</p>
-            <p className="text-sm text-muted-foreground">
-              Leads com score ≥ 7 aparecerão aqui quando disponíveis.
-            </p>
+      {/* Quick Stats */}
+      {scoringStats && (
+        <Card className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Estatísticas de Scoring</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {scoringStats.distribution.excellent}
+              </div>
+              <div className="text-sm text-muted-foreground">Excelentes</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {scoringStats.distribution.good}
+              </div>
+              <div className="text-sm text-muted-foreground">Bons</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-yellow-600">
+                {scoringStats.distribution.fair}
+              </div>
+              <div className="text-sm text-muted-foreground">Médios</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">
+                {scoringStats.distribution.poor}
+              </div>
+              <div className="text-sm text-muted-foreground">Baixos</div>
+            </div>
           </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nome</TableHead>
-                <TableHead>Negócio</TableHead>
-                <TableHead>Cidade</TableHead>
-                <TableHead>Score</TableHead>
-                <TableHead>Nicho</TableHead>
-                <TableHead>Data</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {highQualityLeads.map((lead) => (
-                <TableRow key={lead.id}>
-                  <TableCell className="font-medium">{lead.name}</TableCell>
-                  <TableCell className="max-w-[200px] truncate">{lead.business}</TableCell>
-                  <TableCell>{lead.city}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold">{lead.score}</span>
-                      <ScoreBadge score={lead.score} />
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline">{lead.niche || 'N/A'}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {format(new Date(lead.created_at), 'dd/MM/yyyy', { locale: ptBR })}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
-      </Card>
+        </Card>
+      )}
     </div>
   );
 };
