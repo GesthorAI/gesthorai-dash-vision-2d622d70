@@ -14,7 +14,84 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      leads: {
+        Row: {
+          business: string
+          city: string
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          niche: string | null
+          phone: string | null
+          score: number | null
+          source: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          business: string
+          city: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          niche?: string | null
+          phone?: string | null
+          score?: number | null
+          source?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business?: string
+          city?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          niche?: string | null
+          phone?: string | null
+          score?: number | null
+          source?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      searches: {
+        Row: {
+          city: string
+          created_at: string
+          id: string
+          niche: string
+          status: string
+          total_leads: number | null
+          updated_at: string
+          webhook_id: string | null
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          id?: string
+          niche: string
+          status?: string
+          total_leads?: number | null
+          updated_at?: string
+          webhook_id?: string | null
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          id?: string
+          niche?: string
+          status?: string
+          total_leads?: number | null
+          updated_at?: string
+          webhook_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
