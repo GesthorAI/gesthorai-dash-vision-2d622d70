@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           business: string
           city: string
+          collected_at: string | null
           created_at: string
           email: string | null
           id: string
@@ -30,10 +31,15 @@ export type Database = {
           status: string | null
           updated_at: string
           user_id: string
+          whatsapp_exists: boolean | null
+          whatsapp_jid: string | null
+          whatsapp_number: string | null
+          whatsapp_verified: boolean | null
         }
         Insert: {
           business: string
           city: string
+          collected_at?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -46,10 +52,15 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id: string
+          whatsapp_exists?: boolean | null
+          whatsapp_jid?: string | null
+          whatsapp_number?: string | null
+          whatsapp_verified?: boolean | null
         }
         Update: {
           business?: string
           city?: string
+          collected_at?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -62,6 +73,10 @@ export type Database = {
           status?: string | null
           updated_at?: string
           user_id?: string
+          whatsapp_exists?: boolean | null
+          whatsapp_jid?: string | null
+          whatsapp_number?: string | null
+          whatsapp_verified?: boolean | null
         }
         Relationships: [
           {
