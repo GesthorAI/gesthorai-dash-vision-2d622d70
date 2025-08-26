@@ -11,6 +11,7 @@ import { Search, CheckCircle, AlertCircle, XCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRecentSearches, useCreateSearch } from "@/hooks/useSearches";
 import { useLeadsByDateRange } from "@/hooks/useLeads";
+import { useRealtimeSearches } from "@/hooks/useRealtimeSearches";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { AdvancedSearchForm } from "@/components/Search/AdvancedSearchForm";
@@ -47,6 +48,7 @@ export const LeadSearch = () => {
   const [newCidade, setNewCidade] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const { toast } = useToast();
+  const { isConnected } = useRealtimeSearches();
 
   // Fetch real data
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(20);
@@ -154,6 +156,9 @@ export const LeadSearch = () => {
         <h1 className="text-3xl font-bold text-foreground">Busca e Captura de Leads</h1>
         <p className="text-muted-foreground">
           Centro completo para busca, captura e importação de leads
+          {isConnected && (
+            <span className="ml-2 text-xs text-success">● Atualizações em tempo real</span>
+          )}
         </p>
       </div>
 
