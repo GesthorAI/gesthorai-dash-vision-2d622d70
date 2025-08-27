@@ -11,3 +11,9 @@ verify_jwt = true
 
 [functions.followup-send-whatsapp]
 verify_jwt = true
+
+[functions.n8n-followup-dispatch]
+verify_jwt = true
+
+[functions.webhook-followup-status]
+verify_jwt = false

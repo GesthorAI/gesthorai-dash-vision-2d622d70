@@ -300,6 +300,41 @@ export const useSendFollowupMessages = () => {
   });
 };
 
+// Hook for dispatching to n8n
+export const useDispatchToN8n = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (params: {
+      runId: string;
+      templateId: string;
+      filters: Record<string, any>;
+    }) => {
+      const { data, error } = await supabase.functions.invoke('n8n-followup-dispatch', {
+        body: params,
+      });
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['followup-runs'] });
+      toast({
+        title: 'Follow-up enviado ao n8n',
+        description: `${data.totalLeads} leads enviados para processamento no workflow n8n.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro no envio n8n',
+        description: `Falha ao enviar para n8n: ${error.message}`,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
 // Hook for getting run items
 export const useFollowupRunItems = (runId: string) => {
   return useQuery({

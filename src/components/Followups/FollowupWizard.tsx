@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, ArrowRight, Play, Sparkles, Users, Filter, MessageSquare, Send } from 'lucide-react';
 import { useLeads } from '@/hooks/useLeads';
-import { useMessageTemplates, useCreateFollowupRun, usePrepareFollowupRun, useSendFollowupMessages } from '@/hooks/useFollowups';
+import { useMessageTemplates, useCreateFollowupRun, usePrepareFollowupRun, useSendFollowupMessages, useDispatchToN8n } from '@/hooks/useFollowups';
 
 interface FollowupFilters {
   niche?: string;
@@ -31,6 +31,7 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   const [filters, setFilters] = useState<FollowupFilters>({});
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [useAI, setUseAI] = useState(false);
+  const [useN8n, setUseN8n] = useState(false);
   const [currentRunId, setCurrentRunId] = useState<string>('');
 
   const { data: leads } = useLeads(filters);
@@ -38,6 +39,7 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   const createRun = useCreateFollowupRun();
   const prepareRun = usePrepareFollowupRun();
   const sendMessages = useSendFollowupMessages();
+  const dispatchToN8n = useDispatchToN8n();
 
   const filteredLeadsCount = leads?.length || 0;
 
@@ -74,16 +76,21 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   const handlePrepareRun = async () => {
     if (!currentRunId) return;
 
-    try {
-      await prepareRun.mutateAsync({
-        runId: currentRunId,
-        filters,
-        templateId: selectedTemplateId,
-        generateWithAI: useAI
-      });
+    if (useN8n) {
+      // Skip preparation step for n8n, go directly to sending
       setCurrentStep(4);
-    } catch (error) {
-      console.error('Error preparing run:', error);
+    } else {
+      try {
+        await prepareRun.mutateAsync({
+          runId: currentRunId,
+          filters,
+          templateId: selectedTemplateId,
+          generateWithAI: useAI
+        });
+        setCurrentStep(4);
+      } catch (error) {
+        console.error('Error preparing run:', error);
+      }
     }
   };
 
@@ -91,11 +98,19 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
     if (!currentRunId) return;
 
     try {
-      await sendMessages.mutateAsync({
-        runId: currentRunId,
-        batchSize: 10,
-        delayMs: 2000
-      });
+      if (useN8n) {
+        await dispatchToN8n.mutateAsync({
+          runId: currentRunId,
+          templateId: selectedTemplateId,
+          filters
+        });
+      } else {
+        await sendMessages.mutateAsync({
+          runId: currentRunId,
+          batchSize: 10,
+          delayMs: 2000
+        });
+      }
       
       if (onClose) onClose();
     } catch (error) {
@@ -240,16 +255,34 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
                 </Card>
               ))}
 
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="useAI"
-                  checked={useAI}
-                  onCheckedChange={(checked) => setUseAI(!!checked)}
-                />
-                <Label htmlFor="useAI" className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" />
-                  Personalizar mensagens com IA
-                </Label>
+              <div className="space-y-4">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="useAI"
+                    checked={useAI && !useN8n}
+                    disabled={useN8n}
+                    onCheckedChange={(checked) => setUseAI(!!checked)}
+                  />
+                  <Label htmlFor="useAI" className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Personalizar mensagens com IA
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="useN8n"
+                    checked={useN8n}
+                    onCheckedChange={(checked) => {
+                      setUseN8n(!!checked);
+                      if (checked) setUseAI(false);
+                    }}
+                  />
+                  <Label htmlFor="useN8n" className="flex items-center gap-2">
+                    <Send className="h-4 w-4" />
+                    Enviar via n8n (workflow externo)
+                  </Label>
+                </div>
               </div>
             </div>
           </div>
@@ -287,9 +320,9 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
                 </div>
 
                 <div>
-                  <Label className="font-medium">Personalização IA:</Label>
+                  <Label className="font-medium">Método de envio:</Label>
                   <p className="text-sm text-muted-foreground">
-                    {useAI ? 'Ativada' : 'Desativada'}
+                    {useN8n ? 'Via n8n workflow' : useAI ? 'Direto com IA' : 'Direto simples'}
                   </p>
                 </div>
 
@@ -300,7 +333,7 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
                   disabled={prepareRun.isPending}
                   className="w-full"
                 >
-                  {prepareRun.isPending ? 'Preparando...' : 'Preparar Mensagens'}
+                  {prepareRun.isPending ? 'Preparando...' : (useN8n ? 'Prosseguir para Envio' : 'Preparar Mensagens')}
                 </Button>
               </CardContent>
             </Card>
@@ -319,26 +352,45 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
               <CardHeader>
                 <CardTitle>Pronto para Enviar</CardTitle>
                 <CardDescription>
-                  As mensagens foram preparadas e estão prontas para envio
+                  {useN8n 
+                    ? 'O follow-up será processado pelo seu workflow n8n'
+                    : 'As mensagens foram preparadas e estão prontas para envio'
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">Configuração de Envio:</h4>
+                  <h4 className="font-medium mb-2">
+                    {useN8n ? 'Configuração n8n:' : 'Configuração de Envio:'}
+                  </h4>
                   <ul className="text-sm text-muted-foreground space-y-1">
-                    <li>• Lotes de 10 mensagens</li>
-                    <li>• Intervalo de 2 segundos entre mensagens</li>
-                    <li>• Monitoramento automático de falhas</li>
+                    {useN8n ? (
+                      <>
+                        <li>• Processamento via workflow n8n</li>
+                        <li>• Controle avançado de timing e personalização</li>
+                        <li>• Rastreamento automático via webhooks</li>
+                        <li>• Logs detalhados no n8n</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>• Lotes de 10 mensagens</li>
+                        <li>• Intervalo de 2 segundos entre mensagens</li>
+                        <li>• Monitoramento automático de falhas</li>
+                      </>
+                    )}
                   </ul>
                 </div>
 
                 <Button 
                   onClick={handleSendMessages}
-                  disabled={sendMessages.isPending}
+                  disabled={sendMessages.isPending || dispatchToN8n.isPending}
                   className="w-full"
                   size="lg"
                 >
-                  {sendMessages.isPending ? 'Enviando...' : 'Iniciar Envio'}
+                  {(sendMessages.isPending || dispatchToN8n.isPending) 
+                    ? (useN8n ? 'Enviando ao n8n...' : 'Enviando...')
+                    : (useN8n ? 'Enviar ao n8n' : 'Iniciar Envio')
+                  }
                 </Button>
               </CardContent>
             </Card>
