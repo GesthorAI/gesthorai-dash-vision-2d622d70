@@ -378,6 +378,7 @@ export const useArchiveLead = () => {
   });
 };
 
+// Bulk archive/unarchive multiple leads
 export const useBulkArchiveLeads = () => {
   const queryClient = useQueryClient();
   
