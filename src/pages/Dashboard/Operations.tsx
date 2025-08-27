@@ -1,174 +1,45 @@
 import { useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { KPICard } from "@/components/Dashboard/KPICard";
+import { Badge } from "@/components/ui/badge";
 import { BulkActionsPanel } from "@/components/Operations/BulkActionsPanel";
+import { LeadsTableWithData } from "@/components/Operations/LeadsTableWithData";
 import { WorkflowAutomation } from "@/components/Operations/WorkflowAutomation";
 import { LeadAssignment } from "@/components/Operations/LeadAssignment";
-import { useLeadsWithRealtime } from "@/hooks/useLeads";
-import { useRecentSearches } from "@/hooks/useSearches";
-import { useNavigation } from "@/hooks/useNavigation";
-import { useFilters } from "@/hooks/useFilters";
-import { useSelection } from "@/hooks/useSelection";
+import { FollowupWizard } from "@/components/Followups/FollowupWizard";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useLeads } from "@/hooks/useLeads";
 import { useTemporaryFilters } from "@/hooks/useTemporaryFilters";
+import { useNavigation } from "@/hooks/useNavigation";
 import { 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle, 
-  Users,
-  Phone,
-  Calendar,
-  MessageSquare,
-  Target,
-  Zap,
-  RefreshCw,
+  Users, 
+  Clock,
   TrendingUp,
-  Activity
+  Target,
+  Filter,
+  X,
+  Settings,
+  Zap,
+  UserPlus,
+  MessageSquare,
+  Send
 } from "lucide-react";
-import { format, isAfter, subDays, subHours } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-const PriorityBadge = ({ priority }: { priority: 'high' | 'medium' | 'low' }) => {
-  const variants = {
-    high: 'destructive',
-    medium: 'secondary',
-    low: 'outline'
-  } as const;
-  
-  const labels = {
-    high: 'Alta',
-    medium: 'Média', 
-    low: 'Baixa'
-  };
-  
-  return <Badge variant={variants[priority]}>{labels[priority]}</Badge>;
-};
-
-const ActionCard = ({ 
-  title, 
-  description, 
-  priority, 
-  count, 
-  action, 
-  icon: Icon,
-  onClick 
-}: {
-  title: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
-  count: number;
-  action: string;
-  icon: any;
-  onClick?: () => void;
-}) => (
-  <Card className="p-4">
-    <div className="flex items-start justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-accent" />
-        <h3 className="font-medium">{title}</h3>
-      </div>
-      <PriorityBadge priority={priority} />
-    </div>
-    <p className="text-sm text-muted-foreground mb-3">{description}</p>
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <span className="text-2xl font-bold">{count}</span>
-        <span className="text-sm text-muted-foreground">itens</span>
-      </div>
-      <Button size="sm" variant="outline" onClick={onClick}>
-        {action}
-      </Button>
-    </div>
-  </Card>
-);
 
 export const Operations = () => {
-  const { data: allLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime();
-  const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(50);
-  const { clearSelection } = useSelection();
-  const { setFilters: setTempFilters, clearFilters: clearTempFilters } = useTemporaryFilters();
+  const [activeTab, setActiveTab] = useState("acoes-lote");
+  const [showFollowupWizard, setShowFollowupWizard] = useState(false);
+  const { filters: temporaryFilters, clearFilters: clearTemporaryFilters } = useTemporaryFilters();
+  
+  const { data: leads = [] } = useLeads(temporaryFilters);
 
-  // Handle tab switching
-  const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const hasTemporaryFilters = Object.keys(temporaryFilters).length > 0;
 
-  const handleActionCardClick = (tab: string, filters: any) => {
-    setTempFilters(filters.filters);
-    setActiveTab(tab);
+  const handleActionCardClick = (filters: any) => {
+    // Apply filters and switch to bulk actions tab
+    // This will be implemented with the temporary filters hook
+    setActiveTab("acoes-lote");
   };
-
-  // Calculate operational metrics
-  const now = new Date();
-  const last24h = subHours(now, 24);
-  const last7days = subDays(now, 7);
-
-  // New leads needing first contact (last 24h)
-  const newLeads = allLeads.filter(lead => 
-    isAfter(new Date(lead.created_at), last24h) &&
-    ['novo', 'new', 'pending'].includes(lead.status.toLowerCase())
-  );
-
-  // Leads needing follow-up (no contact in 3+ days, score >= 5)
-  const needsFollowUp = allLeads.filter(lead => {
-    const leadDate = new Date(lead.created_at);
-    const threeDaysAgo = subDays(now, 3);
-    return isAfter(threeDaysAgo, leadDate) && 
-           lead.score >= 5 && 
-           !['convertido', 'converted', 'cliente', 'descartado'].includes(lead.status.toLowerCase());
-  });
-
-  // High-quality leads (score >= 8) from last 7 days
-  const highQualityLeads = allLeads.filter(lead =>
-    isAfter(new Date(lead.created_at), last7days) &&
-    lead.score >= 8
-  );
-
-  // Failed/stuck searches
-  const failedSearches = recentSearches.filter(search =>
-    ['falhou', 'erro', 'error', 'failed'].includes(search.status.toLowerCase())
-  );
-
-  // Processing searches (taking too long)
-  const stuckSearches = recentSearches.filter(search => {
-    const searchDate = new Date(search.created_at);
-    const oneHourAgo = subHours(now, 1);
-    return search.status.toLowerCase() === 'processando' && 
-           isAfter(oneHourAgo, searchDate);
-  });
-
-  // Leads without phone/email
-  const incompleteLeads = allLeads.filter(lead =>
-    (!lead.phone || lead.phone === '') && 
-    (!lead.email || lead.email === '') &&
-    lead.score >= 6
-  );
-
-  // Calculate response rates
-  const totalLeadsWithContact = allLeads.filter(lead => lead.phone || lead.email).length;
-  const respondedLeads = allLeads.filter(lead => 
-    ['contatado', 'respondeu', 'interessado', 'agendado'].includes(lead.status.toLowerCase())
-  ).length;
-  const responseRate = totalLeadsWithContact > 0 ? (respondedLeads / totalLeadsWithContact) * 100 : 0;
-
-  // Today's activities
-  const todaysLeads = allLeads.filter(lead =>
-    format(new Date(lead.created_at), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')
-  ).length;
-
-  const todaysSearches = recentSearches.filter(search =>
-    format(new Date(search.created_at), 'yyyy-MM-dd') === format(now, 'yyyy-MM-dd')
-  ).length;
-
-  if (leadsLoading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Operacional</h1>
-        <p className="text-muted-foreground">Carregando dados operacionais...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
@@ -181,226 +52,132 @@ export const Operations = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="bulk-actions">Ações em Lote</TabsTrigger>
-          <TabsTrigger value="automation">Automação</TabsTrigger>
-          <TabsTrigger value="team">Equipe</TabsTrigger>
+          <TabsTrigger value="acoes-lote">Ações em Lote</TabsTrigger>
+          <TabsTrigger value="automacao">Automação</TabsTrigger>
+          <TabsTrigger value="equipe">Equipe</TabsTrigger>
+          <TabsTrigger value="configuracoes">Configurações</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="dashboard" className="space-y-6">
+        <TabsContent value="acoes-lote" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Ações Prioritárias</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowFollowupWizard(true)}
+                    className="gap-2"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Criar Follow-up
+                  </Button>
+                  {hasTemporaryFilters && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={clearTemporaryFilters}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Limpar Filtros
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleActionCardClick({ status: 'novo', dateRange: 1 })}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-primary" />
+                      <h3 className="font-medium">Contato Inicial</h3>
+                    </div>
+                    <Badge variant="destructive">Alta</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">Leads novos nas últimas 24h</p>
+                  <div className="text-2xl font-bold">{leads.filter(l => l.status === 'novo').length}</div>
+                </Card>
 
-      {/* KPIs Operacionais */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <KPICard
-          title="Leads Hoje"
-          value={todaysLeads.toString()}
-          trend={{
-            value: 0,
-            isPositive: true,
-            period: "ontem"
-          }}
-          icon={<Activity className="h-4 w-4" />}
-          description="Leads gerados hoje"
-        />
-        <KPICard
-          title="Taxa de Resposta"
-          value={`${responseRate.toFixed(1)}%`}
-          trend={{
-            value: 0,
-            isPositive: responseRate >= 50,
-            period: "período anterior"
-          }}
-          icon={<MessageSquare className="h-4 w-4" />}
-          description="Leads que responderam"
-        />
-        <KPICard
-          title="Pendências Urgentes"
-          value={(newLeads.length + needsFollowUp.length).toString()}
-          trend={{
-            value: 0,
-            isPositive: false,
-            period: "ontem"
-          }}
-          icon={<AlertTriangle className="h-4 w-4" />}
-          description="Ações necessárias"
-        />
-        <KPICard
-          title="Buscas Hoje"
-          value={todaysSearches.toString()}
-          trend={{
-            value: 0,
-            isPositive: true,
-            period: "ontem"
-          }}
-          icon={<RefreshCw className="h-4 w-4" />}
-          description="Buscas realizadas"
-        />
-      </div>
+                <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleActionCardClick({ scoreMin: 5, dateRange: 7 })}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      <h3 className="font-medium">Follow-up</h3>
+                    </div>
+                    <Badge variant="destructive">Alta</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">Leads qualificados sem contato</p>
+                  <div className="text-2xl font-bold">{leads.filter(l => (l.score || 0) >= 5).length}</div>
+                </Card>
 
-      {/* Ações Prioritárias */}
-      <div>
-        <h2 className="text-xl font-semibold mb-4">Ações Prioritárias</h2>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <ActionCard
-            title="Contato Inicial"
-            description="Leads novos nas últimas 24h que precisam de primeiro contato"
-            priority="high"
-            count={newLeads.length}
-            action="Contactar"
-            icon={Phone}
-            onClick={() => handleActionCardClick('bulk-actions', { 
-              filters: { dateRange: 1, status: 'novo' }
-            })}
-          />
-          <ActionCard
-            title="Follow-up Necessário" 
-            description="Leads qualificados sem contato há mais de 3 dias"
-            priority="high"
-            count={needsFollowUp.length}
-            action="Fazer Follow-up"
-            icon={MessageSquare}
-            onClick={() => handleActionCardClick('bulk-actions', { 
-              filters: { score: { min: 5 }, dateRange: 7 }
-            })}
-          />
-          <ActionCard
-            title="Leads Premium"
-            description="Leads de alta qualidade da última semana"
-            priority="medium"
-            count={highQualityLeads.length}
-            action="Priorizar"
-            icon={Target}
-            onClick={() => handleActionCardClick('bulk-actions', { 
-              filters: { score: { min: 8 }, dateRange: 7 }
-            })}
-          />
-          <ActionCard
-            title="Dados Incompletos"
-            description="Leads qualificados sem telefone ou email"
-            priority="medium"
-            count={incompleteLeads.length}
-            action="Completar"
-            icon={Users}
-            onClick={() => handleActionCardClick('bulk-actions', { 
-              filters: { score: { min: 6 }, hasEmail: false, hasPhone: false }
-            })}
-          />
-          <ActionCard
-            title="Buscas com Erro"
-            description="Buscas que falharam e precisam ser refeitas"
-            priority="low"
-            count={failedSearches.length}
-            action="Reprocessar"
-            icon={AlertTriangle}
-          />
-          <ActionCard
-            title="Buscas Travadas"
-            description="Buscas processando há mais de 1 hora"
-            priority="medium"
-            count={stuckSearches.length}
-            action="Verificar"
-            icon={Clock}
-          />
-        </div>
-      </div>
+                <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleActionCardClick({ scoreMin: 8, dateRange: 7 })}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Target className="h-4 w-4 text-primary" />
+                      <h3 className="font-medium">Priorizar</h3>
+                    </div>
+                    <Badge variant="secondary">Média</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground mb-2">Leads de alta qualidade</p>
+                  <div className="text-2xl font-bold">{leads.filter(l => (l.score || 0) >= 8).length}</div>
+                </Card>
+              </div>
 
-      {/* Próximas Ações Detalhadas */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <Phone className="h-4 w-4 mr-2" />
-            Leads para Contato Imediato
-          </h3>
-          {newLeads.length === 0 ? (
-            <div className="text-center py-4">
-              <CheckCircle className="h-8 w-8 text-green-500 mx-auto mb-2" />
-              <p className="text-muted-foreground">Todos os leads foram contatados!</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Negócio</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Tempo</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {newLeads.slice(0, 5).map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium">{lead.name}</TableCell>
-                    <TableCell className="max-w-[150px] truncate">{lead.business}</TableCell>
-                    <TableCell>
-                      <Badge variant={lead.score >= 7 ? "default" : "secondary"}>
-                        {lead.score}
+              {hasTemporaryFilters && (
+                <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-4 w-4 text-primary" />
+                    <span className="font-medium">Filtros aplicados:</span>
+                    {Object.entries(temporaryFilters).map(([key, value]) => (
+                      <Badge key={key} variant="outline" className="text-xs">
+                        {key}: {String(value)}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(lead.created_at), 'HH:mm', { locale: ptBR })}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            Leads de Alto Valor
-          </h3>
-          {highQualityLeads.length === 0 ? (
-            <div className="text-center py-4">
-              <Zap className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-              <p className="text-muted-foreground">Nenhum lead de alto valor recente.</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Cidade</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {highQualityLeads.slice(0, 5).map((lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell className="font-medium">{lead.name}</TableCell>
-                    <TableCell>{lead.city}</TableCell>
-                    <TableCell>
-                      <Badge className="bg-green-500">{lead.score}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{lead.status}</Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </Card>
-      </div>
-        </TabsContent>
-
-        <TabsContent value="bulk-actions" className="space-y-6">
+          <LeadsTableWithData />
           <BulkActionsPanel 
-            selectedLeads={[]} // Will use global selection
-            onClearSelection={() => clearSelection()}
+            selectedLeads={[]}
+            onClearSelection={() => {}}
           />
         </TabsContent>
 
-        <TabsContent value="automation" className="space-y-6">
+        <TabsContent value="automacao" className="space-y-6">
           <WorkflowAutomation />
         </TabsContent>
 
-        <TabsContent value="team" className="space-y-6">
+        <TabsContent value="equipe" className="space-y-6">
           <LeadAssignment />
         </TabsContent>
+
+        <TabsContent value="configuracoes" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                Configurações Operacionais
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">Configurações avançadas em desenvolvimento...</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      {/* Follow-up Wizard Dialog */}
+      <Dialog open={showFollowupWizard} onOpenChange={setShowFollowupWizard}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <FollowupWizard onClose={() => setShowFollowupWizard(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

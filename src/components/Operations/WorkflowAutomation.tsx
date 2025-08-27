@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkflows, useToggleWorkflow, useCreateWorkflow } from "@/hooks/useWorkflows";
+import { useLeads, updateLeadStatus } from "@/hooks/useLeads";
+import { useCreateTask } from "@/hooks/useTasks";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Zap, 
   Plus, 
@@ -20,89 +24,118 @@ import {
   Phone,
   Target,
   Filter,
-  ArrowRight
+  ArrowRight,
+  Play
 } from "lucide-react";
 
-interface WorkflowRule {
-  id: string;
-  name: string;
-  isActive: boolean;
-  trigger: {
-    type: 'score_threshold' | 'status_change' | 'time_based' | 'source';
-    value: string;
-  };
-  conditions: {
-    field: string;
-    operator: string;
-    value: string;
-  }[];
-  actions: {
-    type: 'assign_user' | 'update_status' | 'send_email' | 'schedule_task';
-    value: string;
-  }[];
-}
-
 export const WorkflowAutomation = () => {
-  const [workflows, setWorkflows] = useState<WorkflowRule[]>([
-    {
-      id: '1',
-      name: 'Leads de Alto Score',
-      isActive: true,
-      trigger: { type: 'score_threshold', value: '8' },
-      conditions: [
-        { field: 'score', operator: 'gte', value: '8' },
-        { field: 'status', operator: 'eq', value: 'novo' }
-      ],
-      actions: [
-        { type: 'assign_user', value: 'equipe-premium' },
-        { type: 'update_status', value: 'prioridade-alta' }
-      ]
-    },
-    {
-      id: '2', 
-      name: 'Follow-up Automático',
-      isActive: true,
-      trigger: { type: 'time_based', value: '3_days' },
-      conditions: [
-        { field: 'status', operator: 'eq', value: 'contatado' },
-        { field: 'last_contact', operator: 'older_than', value: '3_days' }
-      ],
-      actions: [
-        { type: 'schedule_task', value: 'follow_up_call' },
-        { type: 'send_email', value: 'template_follow_up' }
-      ]
-    },
-    {
-      id: '3',
-      name: 'Leads Sem Contato',
-      isActive: false,
-      trigger: { type: 'time_based', value: '24_hours' },
-      conditions: [
-        { field: 'status', operator: 'eq', value: 'novo' },
-        { field: 'created_at', operator: 'older_than', value: '24_hours' }
-      ],
-      actions: [
-        { type: 'update_status', value: 'pendente' },
-        { type: 'assign_user', value: 'equipe-junior' }
-      ]
-    }
-  ]);
-
   const [showNewWorkflow, setShowNewWorkflow] = useState(false);
+  const [executingWorkflow, setExecutingWorkflow] = useState<string | null>(null);
+  
+  const { data: workflows = [] } = useWorkflows();
+  const toggleWorkflow = useToggleWorkflow();
+  const createWorkflow = useCreateWorkflow();
+  const { data: allLeads } = useLeads();
+  const createTask = useCreateTask();
   const { toast } = useToast();
 
-  const toggleWorkflow = (id: string) => {
-    setWorkflows(prev => 
-      prev.map(w => 
-        w.id === id ? { ...w, isActive: !w.isActive } : w
-      )
-    );
+  const handleToggleWorkflow = async (id: string) => {
+    try {
+      await toggleWorkflow.mutateAsync(id);
+      toast({
+        title: "Workflow atualizado",
+        description: "Status do workflow foi alterado com sucesso",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Não foi possível alterar o status do workflow",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const executeWorkflow = async (workflowId: string) => {
+    setExecutingWorkflow(workflowId);
     
-    const workflow = workflows.find(w => w.id === id);
-    toast({
-      title: workflow?.isActive ? "Workflow desativado" : "Workflow ativado",
-      description: `"${workflow?.name}" foi ${workflow?.isActive ? 'desativado' : 'ativado'} com sucesso`,
-    });
+    try {
+      const workflow = workflows.find(w => w.id === workflowId);
+      if (!workflow || !workflow.is_active) return;
+
+      // Filter leads based on workflow conditions
+      let matchingLeads = allLeads || [];
+      
+      // Apply workflow conditions
+      workflow.conditions.forEach(condition => {
+        const conditionObj = condition as any;
+        matchingLeads = matchingLeads.filter(lead => {
+          switch (conditionObj.field) {
+            case 'score':
+              return conditionObj.operator === 'gte' ? 
+                (lead.score || 0) >= parseInt(conditionObj.value) :
+                (lead.score || 0) <= parseInt(conditionObj.value);
+            case 'status':
+              return conditionObj.operator === 'eq' ? 
+                lead.status === conditionObj.value : 
+                lead.status !== conditionObj.value;
+            default:
+              return true;
+          }
+        });
+      });
+
+      // Execute workflow actions
+      let actionsCount = 0;
+      for (const action of workflow.actions) {
+        const actionObj = action as any;
+        
+        for (const lead of matchingLeads) {
+          try {
+            switch (actionObj.type) {
+              case 'update_status':
+                // Use the updateLeadStatus function directly
+                const updateResult = await supabase
+                  .from('leads')
+                  .update({ status: actionObj.value })
+                  .eq('id', lead.id);
+                
+                if (updateResult.error) throw updateResult.error;
+                actionsCount++;
+                break;
+                
+              case 'schedule_task':
+                await createTask.mutateAsync({
+                  title: `${actionObj.value} - ${lead.name}`,
+                  description: `Tarefa automática gerada pelo workflow: ${workflow.name}`,
+                  type: 'follow_up',
+                  priority: 'media',
+                  due_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                  lead_id: lead.id
+                });
+                actionsCount++;
+                break;
+            }
+          } catch (error) {
+            console.error(`Erro ao executar ação para lead ${lead.id}:`, error);
+          }
+        }
+      }
+
+      toast({
+        title: "Workflow executado",
+        description: `${actionsCount} ações foram executadas para ${matchingLeads.length} leads`,
+      });
+      
+    } catch (error) {
+      console.error('Erro ao executar workflow:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível executar o workflow",
+        variant: "destructive"
+      });
+    } finally {
+      setExecutingWorkflow(null);
+    }
   };
 
   const getTriggerIcon = (type: string) => {
@@ -165,7 +198,7 @@ export const WorkflowAutomation = () => {
         <Card>
           <CardContent className="pt-6 text-center">
             <div className="text-2xl font-bold text-green-600">
-              {workflows.filter(w => w.isActive).length}
+              {workflows.filter(w => w.is_active).length}
             </div>
             <p className="text-sm text-muted-foreground">Workflows Ativos</p>
           </CardContent>
@@ -173,7 +206,7 @@ export const WorkflowAutomation = () => {
         <Card>
           <CardContent className="pt-6 text-center">
             <div className="text-2xl font-bold text-blue-600">
-              {workflows.reduce((acc, w) => acc + w.actions.length, 0)}
+              {workflows.reduce((acc, w) => acc + (Array.isArray(w.actions) ? w.actions.length : 0), 0)}
             </div>
             <p className="text-sm text-muted-foreground">Ações Configuradas</p>
           </CardContent>
@@ -181,9 +214,9 @@ export const WorkflowAutomation = () => {
         <Card>
           <CardContent className="pt-6 text-center">
             <div className="text-2xl font-bold text-purple-600">
-              247
+              {allLeads?.length || 0}
             </div>
-            <p className="text-sm text-muted-foreground">Leads Processados (7d)</p>
+            <p className="text-sm text-muted-foreground">Total de Leads</p>
           </CardContent>
         </Card>
       </div>
@@ -196,17 +229,27 @@ export const WorkflowAutomation = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
-                    {getTriggerIcon(workflow.trigger.type)}
+                    {getTriggerIcon(workflow.trigger_type)}
                     <CardTitle className="text-lg">{workflow.name}</CardTitle>
                   </div>
-                  <Badge variant={workflow.isActive ? "default" : "secondary"}>
-                    {workflow.isActive ? "Ativo" : "Inativo"}
+                  <Badge variant={workflow.is_active ? "default" : "secondary"}>
+                    {workflow.is_active ? "Ativo" : "Inativo"}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => executeWorkflow(workflow.id)}
+                    disabled={!workflow.is_active || executingWorkflow === workflow.id}
+                  >
+                    <Play className="h-4 w-4 mr-1" />
+                    {executingWorkflow === workflow.id ? 'Executando...' : 'Executar'}
+                  </Button>
                   <Switch
-                    checked={workflow.isActive}
-                    onCheckedChange={() => toggleWorkflow(workflow.id)}
+                    checked={workflow.is_active}
+                    onCheckedChange={() => handleToggleWorkflow(workflow.id)}
+                    disabled={toggleWorkflow.isPending}
                   />
                   <Button variant="ghost" size="sm">
                     <Settings className="h-4 w-4" />
@@ -220,19 +263,19 @@ export const WorkflowAutomation = () => {
                 <div>
                   <Label className="text-sm font-medium">Gatilho</Label>
                   <div className="flex items-center gap-2 mt-1">
-                    {getTriggerIcon(workflow.trigger.type)}
+                    {getTriggerIcon(workflow.trigger_type)}
                     <span className="text-sm">
-                      {getTriggerLabel(workflow.trigger.type, workflow.trigger.value)}
+                      {getTriggerLabel(workflow.trigger_type, workflow.trigger_config?.value || '')}
                     </span>
                   </div>
                 </div>
 
                 {/* Conditions */}
-                {workflow.conditions.length > 0 && (
+                {Array.isArray(workflow.conditions) && workflow.conditions.length > 0 && (
                   <div>
                     <Label className="text-sm font-medium">Condições</Label>
                     <div className="space-y-1 mt-1">
-                      {workflow.conditions.map((condition, index) => (
+                      {workflow.conditions.map((condition: any, index) => (
                         <div key={index} className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Filter className="h-3 w-3" />
                           <span>
@@ -250,7 +293,7 @@ export const WorkflowAutomation = () => {
                 <div>
                   <Label className="text-sm font-medium">Ações</Label>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {workflow.actions.map((action, index) => (
+                    {Array.isArray(workflow.actions) && workflow.actions.map((action: any, index) => (
                       <Badge key={index} variant="outline" className="text-xs gap-1">
                         {getActionIcon(action.type)}
                         {getActionLabel(action.type, action.value)}

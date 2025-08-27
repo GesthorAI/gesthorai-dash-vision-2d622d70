@@ -6,8 +6,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Lead } from "@/hooks/useLeads";
+import { Lead, useLeads } from "@/hooks/useLeads";
 import { useToast } from "@/hooks/use-toast";
+import { useTeamMembers } from "@/hooks/useTeam";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Users, 
   UserPlus, 
@@ -47,58 +49,34 @@ interface AssignmentRule {
 }
 
 export const LeadAssignment = () => {
-  const [teamMembers] = useState<TeamMember[]>([
-    {
-      id: '1',
-      name: 'Ana Silva',
-      email: 'ana@empresa.com',
-      role: 'senior',
-      status: 'available',
-      assignedLeads: 15,
-      capacity: 25,
-      conversionRate: 32.5,
-      averageResponseTime: 2.5,
-      specialties: ['tecnologia', 'saúde']
-    },
-    {
-      id: '2',
-      name: 'Carlos Santos',
-      email: 'carlos@empresa.com',
-      role: 'junior',
-      status: 'busy',
-      assignedLeads: 22,
-      capacity: 20,
-      conversionRate: 18.2,
-      averageResponseTime: 4.1,
-      specialties: ['educação', 'retail']
-    },
-    {
-      id: '3',
-      name: 'Marina Costa',
-      email: 'marina@empresa.com',
-      role: 'senior',
-      status: 'available',
-      assignedLeads: 18,
-      capacity: 30,
-      conversionRate: 41.8,
-      averageResponseTime: 1.8,
-      specialties: ['financeiro', 'b2b']
-    },
-    {
-      id: '4',
-      name: 'João Oliveira',
-      email: 'joao@empresa.com',
-      role: 'manager',
-      status: 'available',
-      assignedLeads: 8,
-      capacity: 15,
-      conversionRate: 58.3,
-      averageResponseTime: 1.2,
-      specialties: ['enterprise', 'high-value']
-    }
-  ]);
+  const { data: teamMembersData = [] } = useTeamMembers();
+  const { data: allLeads = [] } = useLeads();
+  const [selectedMember, setSelectedMember] = useState<string>("");
+  const [assignmentMode, setAssignmentMode] = useState<'manual' | 'automatic'>('automatic');
+  
+  const { toast } = useToast();
 
-  const [assignmentRules] = useState<AssignmentRule[]>([
+  // Calculate real statistics for each team member
+  const teamMembers = teamMembersData.map(member => {
+    const assignedLeads = allLeads.filter(lead => lead.assigned_to === member.id);
+    const assignedCount = assignedLeads.length;
+    
+    return {
+      id: member.id,
+      name: member.name,
+      email: member.email,
+      role: member.role as 'junior' | 'senior' | 'manager',
+      status: member.status as 'available' | 'busy' | 'offline',
+      assignedLeads: assignedCount,
+      capacity: member.capacity,
+      conversionRate: Math.random() * 50 + 10, // Mock for now
+      averageResponseTime: Math.random() * 5 + 1, // Mock for now
+      specialties: member.specialties
+    };
+  });
+
+  // Mock assignment rules for now - these could be fetched from assignment_rules table
+  const assignmentRules: AssignmentRule[] = [
     {
       id: '1',
       name: 'Leads Premium',
@@ -107,7 +85,7 @@ export const LeadAssignment = () => {
         sources: ['website', 'referral'],
         niches: ['tecnologia', 'financeiro']
       },
-      assignTo: ['4'], // Manager
+      assignTo: teamMembers.filter(m => m.role === 'manager').map(m => m.id),
       isActive: true
     },
     {
@@ -118,7 +96,7 @@ export const LeadAssignment = () => {
         sources: ['all'],
         niches: ['all']
       },
-      assignTo: ['1', '3'], // Seniors
+      assignTo: teamMembers.filter(m => m.role === 'senior').map(m => m.id),
       isActive: true
     },
     {
@@ -129,15 +107,10 @@ export const LeadAssignment = () => {
         sources: ['all'],
         niches: ['all']
       },
-      assignTo: ['2'], // Junior
+      assignTo: teamMembers.filter(m => m.role === 'junior').map(m => m.id),
       isActive: true
     }
-  ]);
-
-  const [selectedMember, setSelectedMember] = useState<string>("");
-  const [assignmentMode, setAssignmentMode] = useState<'manual' | 'automatic'>('automatic');
-  
-  const { toast } = useToast();
+  ];
 
   const getStatusColor = (status: TeamMember['status']) => {
     switch (status) {
@@ -175,18 +148,126 @@ export const LeadAssignment = () => {
     }
   };
 
-  const handleAutoAssign = () => {
-    toast({
-      title: "Atribuição Automática",
-      description: "12 leads foram distribuídos automaticamente baseado nas regras configuradas",
-    });
+  const handleAutoAssign = async () => {
+    try {
+      // Get unassigned leads
+      const unassignedLeads = allLeads.filter(lead => !lead.assigned_to);
+      let assignedCount = 0;
+
+      for (const lead of unassignedLeads) {
+        // Find matching rule
+        const matchingRule = assignmentRules.find(rule => {
+          if (!rule.isActive) return false;
+          
+          const score = lead.score || 0;
+          const scoreInRange = score >= rule.criteria.scoreRange[0] && score <= rule.criteria.scoreRange[1];
+          
+          return scoreInRange;
+        });
+
+        if (matchingRule && matchingRule.assignTo.length > 0) {
+          // Find team member with lowest current load
+          const availableMembers = teamMembers.filter(m => 
+            matchingRule.assignTo.includes(m.id) && 
+            m.assignedLeads < m.capacity
+          );
+          
+          if (availableMembers.length > 0) {
+            const bestMember = availableMembers.reduce((prev, curr) => 
+              (prev.assignedLeads / prev.capacity) < (curr.assignedLeads / curr.capacity) ? prev : curr
+            );
+
+            // Assign lead
+            await supabase
+              .from('leads')
+              .update({ assigned_to: bestMember.id })
+              .eq('id', lead.id);
+
+            // Create assignment record
+            await supabase
+              .from('lead_assignments')
+              .insert({
+                lead_id: lead.id,
+                team_member_id: bestMember.id,
+                assigned_by: (await supabase.auth.getUser()).data.user?.id
+              });
+
+            assignedCount++;
+          }
+        }
+      }
+
+      toast({
+        title: "Atribuição Automática",
+        description: `${assignedCount} leads foram distribuídos automaticamente baseado nas regras configuradas`,
+      });
+    } catch (error) {
+      console.error('Erro na atribuição automática:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível executar a atribuição automática",
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleRebalance = () => {
-    toast({
-      title: "Redistribuição Realizada",
-      description: "Leads foram redistribuídos para balancear a carga de trabalho",
-    });
+  const handleRebalance = async () => {
+    try {
+      // Get all assigned leads
+      const assignedLeads = allLeads.filter(lead => lead.assigned_to);
+      let rebalancedCount = 0;
+
+      // Calculate average load
+      const totalCapacity = teamMembers.reduce((acc, member) => acc + member.capacity, 0);
+      const totalAssigned = teamMembers.reduce((acc, member) => acc + member.assignedLeads, 0);
+      const targetLoad = totalAssigned / teamMembers.length;
+
+      // Redistribute from overloaded to underloaded members
+      const overloadedMembers = teamMembers.filter(m => m.assignedLeads > targetLoad);
+      const underloadedMembers = teamMembers.filter(m => m.assignedLeads < m.capacity);
+
+      for (const overloadedMember of overloadedMembers) {
+        const excess = Math.floor(overloadedMember.assignedLeads - targetLoad);
+        const memberLeads = assignedLeads.filter(lead => lead.assigned_to === overloadedMember.id);
+
+        for (let i = 0; i < Math.min(excess, memberLeads.length); i++) {
+          const availableUnderloaded = underloadedMembers.filter(m => m.assignedLeads < m.capacity);
+          if (availableUnderloaded.length === 0) break;
+
+          const targetMember = availableUnderloaded[0];
+          
+          // Reassign lead
+          await supabase
+            .from('leads')
+            .update({ assigned_to: targetMember.id })
+            .eq('id', memberLeads[i].id);
+
+          // Create new assignment record
+          await supabase
+            .from('lead_assignments')
+            .insert({
+              lead_id: memberLeads[i].id,
+              team_member_id: targetMember.id,
+              assigned_by: (await supabase.auth.getUser()).data.user?.id
+            });
+
+          rebalancedCount++;
+          targetMember.assignedLeads++;
+        }
+      }
+
+      toast({
+        title: "Redistribuição Realizada",
+        description: `${rebalancedCount} leads foram redistribuídos para balancear a carga de trabalho`,
+      });
+    } catch (error) {
+      console.error('Erro no rebalanceamento:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível executar o rebalanceamento",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -232,7 +313,7 @@ export const LeadAssignment = () => {
           <CardContent className="pt-6 text-center">
             <Trophy className="h-8 w-8 mx-auto mb-2 text-yellow-600" />
             <div className="text-2xl font-bold">
-              {(teamMembers.reduce((acc, m) => acc + m.conversionRate, 0) / teamMembers.length).toFixed(1)}%
+              {teamMembers.length > 0 ? (teamMembers.reduce((acc, m) => acc + m.conversionRate, 0) / teamMembers.length).toFixed(1) : '0'}%
             </div>
             <p className="text-sm text-muted-foreground">Taxa Média de Conversão</p>
           </CardContent>
@@ -241,7 +322,7 @@ export const LeadAssignment = () => {
           <CardContent className="pt-6 text-center">
             <Clock className="h-8 w-8 mx-auto mb-2 text-blue-600" />
             <div className="text-2xl font-bold">
-              {(teamMembers.reduce((acc, m) => acc + m.averageResponseTime, 0) / teamMembers.length).toFixed(1)}h
+              {teamMembers.length > 0 ? (teamMembers.reduce((acc, m) => acc + m.averageResponseTime, 0) / teamMembers.length).toFixed(1) : '0'}h
             </div>
             <p className="text-sm text-muted-foreground">Tempo Médio de Resposta</p>
           </CardContent>
@@ -299,7 +380,7 @@ export const LeadAssignment = () => {
                     <div className="space-y-1">
                       <div className="font-medium">{member.assignedLeads}/{member.capacity}</div>
                       <Progress 
-                        value={(member.assignedLeads / member.capacity) * 100} 
+                        value={member.capacity > 0 ? (member.assignedLeads / member.capacity) * 100 : 0} 
                         className="h-1"
                       />
                     </div>
@@ -309,19 +390,19 @@ export const LeadAssignment = () => {
                       variant={member.assignedLeads >= member.capacity ? "destructive" : 
                                member.assignedLeads > member.capacity * 0.8 ? "secondary" : "outline"}
                     >
-                      {((member.assignedLeads / member.capacity) * 100).toFixed(0)}%
+                      {member.capacity > 0 ? ((member.assignedLeads / member.capacity) * 100).toFixed(0) : '0'}%
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <TrendingUp className="h-3 w-3 text-green-600" />
-                      <span className="font-medium">{member.conversionRate}%</span>
+                      <span className="font-medium">{member.conversionRate.toFixed(1)}%</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Clock className="h-3 w-3 text-muted-foreground" />
-                      <span>{member.averageResponseTime}h</span>
+                      <span>{member.averageResponseTime.toFixed(1)}h</span>
                     </div>
                   </TableCell>
                   <TableCell>
