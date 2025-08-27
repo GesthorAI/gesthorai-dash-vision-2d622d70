@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.start-search]
 verify_jwt = true
+
+[functions.followup-prepare]
+verify_jwt = true
+
+[functions.followup-send-whatsapp]
+verify_jwt = true

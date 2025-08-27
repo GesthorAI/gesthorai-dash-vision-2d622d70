@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Brain, BarChart3, Filter, Award, Settings, Search, Menu, X, User, LogOut, CheckSquare } from "lucide-react";
+import { Brain, BarChart3, Filter, Award, Settings, Search, Menu, X, User, LogOut, CheckSquare, MessageSquare } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,6 +16,7 @@ const navigationItems = [
   { id: "overview", label: "Visão Geral", icon: BarChart3 },
   { id: "search", label: "Busca de Leads", icon: Search },
   { id: "tasks", label: "Tarefas", icon: CheckSquare },
+  { id: "followups", label: "Follow-ups", icon: MessageSquare },
   { id: "funnel", label: "Funil", icon: Filter },
   { id: "quality", label: "Qualidade & Score", icon: Award },
   { id: "operations", label: "Operacional", icon: Settings },
