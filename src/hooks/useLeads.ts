@@ -330,44 +330,41 @@ export const useCreateLead = () => {
     mutationFn: async (lead: Omit<Lead, "id" | "created_at" | "updated_at" | "user_id">) => {
       if (!user) throw new Error('User must be authenticated');
       
+      // Normalize phone and email for duplicate detection
+      const normalizePhone = (phone?: string) => {
+        if (!phone) return null;
+        return phone.replace(/\D/g, '');
+      };
+
+      const normalizeEmail = (email?: string) => {
+        if (!email) return null;
+        return email.toLowerCase().trim();
+      };
+
       const leadWithUserId = {
         ...lead,
         user_id: user.id,
+        normalized_phone: normalizePhone(lead.phone),
+        normalized_email: normalizeEmail(lead.email),
       };
 
-      let result;
+      // Simple insert without complex upsert logic to avoid conflicts
+      const result = await supabase
+        .from("leads")
+        .insert(leadWithUserId)
+        .select()
+        .single();
       
-      if (lead.phone && lead.phone.trim() !== '') {
-        // Try upsert by phone first (preferred)
-        result = await supabase
-          .from("leads")
-          .upsert(leadWithUserId, { 
-            onConflict: 'user_id,normalized_phone',
-            ignoreDuplicates: true 
-          })
-          .select()
-          .single();
-      } else if (lead.email && lead.email.trim() !== '') {
-        // Fallback to upsert by email
-        result = await supabase
-          .from("leads")
-          .upsert(leadWithUserId, { 
-            onConflict: 'user_id,normalized_email',
-            ignoreDuplicates: true 
-          })
-          .select()
-          .single();
-      } else {
-        // No phone or email - regular insert
-        result = await supabase
-          .from("leads")
-          .insert(leadWithUserId)
-          .select()
-          .single();
+      if (result.error) {
+        // Check if it's a duplicate error
+        if (result.error.code === '23505') {
+          // Duplicate key error - return existing lead
+          return { data: null, isDuplicate: true };
+        }
+        throw result.error;
       }
       
-      if (result.error) throw result.error;
-      return { data: result.data, isDuplicate: !result.data };
+      return { data: result.data, isDuplicate: false };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
