@@ -7,7 +7,8 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Lead } from "@/hooks/useLeads";
 import { ScoringCriteria, ScoringWeights } from "@/hooks/useLeadScoring";
-import { Star, Settings, TrendingUp, Phone, Mail, Building, MapPin, Target, Clock } from "lucide-react";
+import { Star, Settings, TrendingUp, Phone, Mail, Building, MapPin, Target, Clock, CheckSquare } from "lucide-react";
+import { TaskForm } from "@/components/Tasks/TaskForm";
 import { useState } from "react";
 
 interface LeadScoreCardProps {
@@ -28,6 +29,7 @@ export const LeadScoreCard = ({
   onWeightsChange, 
   showBreakdown = true 
 }: LeadScoreCardProps) => {
+  const [showTaskForm, setShowTaskForm] = useState(false);
   const [customWeights, setCustomWeights] = useState<ScoringWeights>({
     contactInfo: 0.25,
     businessProfile: 0.30,
@@ -103,7 +105,13 @@ export const LeadScoreCard = ({
           </div>
         </div>
         
-        {onWeightsChange && (
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setShowTaskForm(true)}>
+            <CheckSquare className="h-4 w-4 mr-2" />
+            Criar Tarefa
+          </Button>
+          
+          {onWeightsChange && (
           <Dialog>
             <DialogTrigger asChild>
               <Button variant="outline" size="sm">
@@ -145,7 +153,8 @@ export const LeadScoreCard = ({
               </div>
             </DialogContent>
           </Dialog>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Score Progress Bar */}
@@ -238,6 +247,13 @@ export const LeadScoreCard = ({
           )}
         </div>
       </div>
+
+      {/* Task Form */}
+      <TaskForm
+        open={showTaskForm}
+        onOpenChange={setShowTaskForm}
+        defaultLeadId={lead.id}
+      />
     </Card>
   );
 };

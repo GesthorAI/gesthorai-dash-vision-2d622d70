@@ -5,6 +5,7 @@ import { LeadSearch } from "@/pages/Dashboard/LeadSearch";
 import { Funnel } from "@/pages/Dashboard/Funnel";
 import { Quality } from "@/pages/Dashboard/Quality";
 import { Operations } from "@/pages/Dashboard/Operations";
+import { Tasks } from "@/pages/Dashboard/Tasks";
 
 // Placeholder components for other pages are now replaced with real implementations
 
@@ -23,6 +24,8 @@ const Index = () => {
         return <Operations />;
       case "search":
         return <LeadSearch />;
+      case "tasks":
+        return <Tasks />;
       default:
         return <Overview />;
     }
