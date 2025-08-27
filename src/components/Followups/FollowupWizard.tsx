@@ -163,12 +163,12 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="status">Status</Label>
-                  <Select value={filters.status || ''} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}>
+                  <Select value={filters.status || 'all'} onValueChange={(value) => setFilters(prev => ({ ...prev, status: value === 'all' ? undefined : value }))}>
                     <SelectTrigger>
                       <SelectValue placeholder="Todos" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="novo">Novo</SelectItem>
                       <SelectItem value="contatado">Contatado</SelectItem>
                       <SelectItem value="qualificado">Qualificado</SelectItem>

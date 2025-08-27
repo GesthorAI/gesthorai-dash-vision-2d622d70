@@ -70,10 +70,7 @@ export const useLeads = (filters?: LeadFilters) => {
 
       let query = supabase
         .from('leads')
-        .select(`
-          *,
-          team_members:assigned_to(id, name, email, role)
-        `)
+        .select('*')
         .eq('user_id', user.id);
 
       // Handle archived filter

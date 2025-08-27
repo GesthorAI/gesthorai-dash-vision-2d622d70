@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { 
   Plus, 
   MessageSquare, 
@@ -112,6 +112,9 @@ export const Followups: React.FC = () => {
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Criar Follow-up</DialogTitle>
+              <DialogDescription>
+                Configure filtros, selecione templates de mensagem e envie follow-ups automatizados via WhatsApp
+              </DialogDescription>
             </DialogHeader>
             <FollowupWizard onClose={() => setShowWizard(false)} />
           </DialogContent>
@@ -309,6 +312,9 @@ export const Followups: React.FC = () => {
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalhes da Campanha</DialogTitle>
+              <DialogDescription>
+                Visualize o status e progresso de cada mensagem enviada nesta campanha
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               {runItems.map((item) => (
