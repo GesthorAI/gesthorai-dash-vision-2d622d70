@@ -33,8 +33,7 @@ const Operations = () => {
       } else if (filterType === 'recent_leads' && filters.dateRange) {
         globalFilters.setDateRange(filters.dateRange);
       } else if (filterType === 'search_results' && filters.searchId) {
-        // Handle search filter - could be implemented with a special search filter
-        console.log('Filtering by search:', filters.searchId);
+        globalFilters.setSearchId(filters.searchId);
       }
       
       clearPendingFilters();
@@ -58,6 +57,7 @@ const Operations = () => {
     sources: globalFilters.sources,
     fromDate: globalFilters.customDateRange?.from?.toISOString(),
     toDate: globalFilters.customDateRange?.to?.toISOString(),
+    searchId: globalFilters.searchId,
   };
 
   const { data: leads = [], isLoading, refetch } = useLeadsWithRealtime(finalFilters);

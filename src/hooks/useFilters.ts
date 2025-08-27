@@ -15,6 +15,7 @@ interface FilterState {
   sources?: string[];
   searchTerm?: string;
   customDateRange?: { from?: Date; to?: Date };
+  searchId?: string;
   setNiche: (niche?: string) => void;
   setCity: (city?: string) => void;
   setDateRange: (days: number) => void;
@@ -28,6 +29,7 @@ interface FilterState {
   setSources: (sources?: string[]) => void;
   setSearchTerm: (term?: string) => void;
   setCustomDateRange: (range?: { from?: Date; to?: Date }) => void;
+  setSearchId: (searchId?: string) => void;
   clearFilters: () => void;
   getActiveFiltersCount: () => number;
 }
@@ -49,7 +51,8 @@ export const useFilters = create<FilterState>()(
       setSources: (sources) => set({ sources }),
       setSearchTerm: (term) => set({ searchTerm: term }),
       setCustomDateRange: (range) => set({ customDateRange: range }),
-      clearFilters: () => set({ 
+      setSearchId: (searchId) => set({ searchId }),
+      clearFilters: () => set({
         selectedNiche: undefined,
         selectedCity: undefined,
         dateRange: 30,
@@ -62,7 +65,8 @@ export const useFilters = create<FilterState>()(
         assignedTo: null,
         sources: undefined,
         searchTerm: undefined,
-        customDateRange: undefined
+        customDateRange: undefined,
+        searchId: undefined
       }),
       getActiveFiltersCount: () => {
         const state = get();
@@ -79,6 +83,7 @@ export const useFilters = create<FilterState>()(
         if (state.sources?.length) count++;
         if (state.searchTerm) count++;
         if (state.customDateRange?.from || state.customDateRange?.to) count++;
+        if (state.searchId) count++;
         return count;
       },
     }),

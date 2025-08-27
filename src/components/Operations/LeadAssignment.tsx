@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Lead, useLeads } from "@/hooks/useLeads";
 import { useToast } from "@/hooks/use-toast";
 import { useTeamMembers } from "@/hooks/useTeam";
+import { useAssignmentRules } from "@/hooks/useAssignmentRules";
+import { AssignmentRulesManager } from "./AssignmentRulesManager";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Users, 
@@ -36,21 +37,11 @@ interface TeamMember {
   specialties: string[];
 }
 
-interface AssignmentRule {
-  id: string;
-  name: string;
-  criteria: {
-    scoreRange: [number, number];
-    sources: string[];
-    niches: string[];
-  };
-  assignTo: string[];
-  isActive: boolean;
-}
 
 export const LeadAssignment = () => {
   const { data: teamMembersData = [] } = useTeamMembers();
   const { data: allLeads = [] } = useLeads();
+  const { data: assignmentRules = [], refetch: refetchRules } = useAssignmentRules();
   const [selectedMember, setSelectedMember] = useState<string>("");
   const [assignmentMode, setAssignmentMode] = useState<'manual' | 'automatic'>('automatic');
   
@@ -75,42 +66,6 @@ export const LeadAssignment = () => {
     };
   });
 
-  // Mock assignment rules for now - these could be fetched from assignment_rules table
-  const assignmentRules: AssignmentRule[] = [
-    {
-      id: '1',
-      name: 'Leads Premium',
-      criteria: {
-        scoreRange: [8, 10],
-        sources: ['website', 'referral'],
-        niches: ['tecnologia', 'financeiro']
-      },
-      assignTo: teamMembers.filter(m => m.role === 'manager').map(m => m.id),
-      isActive: true
-    },
-    {
-      id: '2',
-      name: 'Leads Qualificados',
-      criteria: {
-        scoreRange: [6, 7],
-        sources: ['all'],
-        niches: ['all']
-      },
-      assignTo: teamMembers.filter(m => m.role === 'senior').map(m => m.id),
-      isActive: true
-    },
-    {
-      id: '3',
-      name: 'Leads Iniciantes',
-      criteria: {
-        scoreRange: [3, 5],
-        sources: ['all'],
-        niches: ['all']
-      },
-      assignTo: teamMembers.filter(m => m.role === 'junior').map(m => m.id),
-      isActive: true
-    }
-  ];
 
   const getStatusColor = (status: TeamMember['status']) => {
     switch (status) {
@@ -157,7 +112,7 @@ export const LeadAssignment = () => {
       for (const lead of unassignedLeads) {
         // Find matching rule
         const matchingRule = assignmentRules.find(rule => {
-          if (!rule.isActive) return false;
+          if (!rule.is_active) return false;
           
           const score = lead.score || 0;
           const scoreInRange = score >= rule.criteria.scoreRange[0] && score <= rule.criteria.scoreRange[1];
@@ -165,10 +120,10 @@ export const LeadAssignment = () => {
           return scoreInRange;
         });
 
-        if (matchingRule && matchingRule.assignTo.length > 0) {
+        if (matchingRule && matchingRule.assign_to.length > 0) {
           // Find team member with lowest current load
           const availableMembers = teamMembers.filter(m => 
-            matchingRule.assignTo.includes(m.id) && 
+            matchingRule.assign_to.includes(m.id) && 
             m.assignedLeads < m.capacity
           );
           
@@ -427,37 +382,10 @@ export const LeadAssignment = () => {
       </Card>
 
       {/* Assignment Rules */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Regras de Atribuição
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {assignmentRules.map((rule) => (
-              <div key={rule.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-medium">{rule.name}</h4>
-                    <Badge variant={rule.isActive ? "default" : "secondary"}>
-                      {rule.isActive ? "Ativo" : "Inativo"}
-                    </Badge>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Score: {rule.criteria.scoreRange[0]}-{rule.criteria.scoreRange[1]} • 
-                    Atribuído para: {rule.assignTo.length} membro(s)
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <AssignmentRulesManager 
+        rules={assignmentRules} 
+        onRulesChange={refetchRules}
+      />
     </div>
   );
 };

@@ -3,14 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useWorkflows, useToggleWorkflow, useCreateWorkflow } from "@/hooks/useWorkflows";
 import { useLeads, updateLeadStatus } from "@/hooks/useLeads";
 import { useCreateTask } from "@/hooks/useTasks";
+import { WorkflowCreator } from "./WorkflowCreator";
 import { supabase } from "@/integrations/supabase/client";
 import { 
   Zap, 
@@ -352,6 +352,16 @@ export const WorkflowAutomation = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Workflow Creator Dialog */}
+      <Dialog open={showNewWorkflow} onOpenChange={setShowNewWorkflow}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Novo Workflow</DialogTitle>
+          </DialogHeader>
+          <WorkflowCreator onClose={() => setShowNewWorkflow(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

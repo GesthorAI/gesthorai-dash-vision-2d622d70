@@ -21,6 +21,7 @@ export interface CreateWorkflowData {
   trigger_config?: Record<string, any>;
   conditions?: any[];
   actions?: any[];
+  is_active?: boolean;
 }
 
 export const useWorkflows = () => {
@@ -60,7 +61,8 @@ export const useCreateWorkflow = () => {
           trigger_type: data.trigger_type,
           trigger_config: data.trigger_config || {},
           conditions: data.conditions || [],
-          actions: data.actions || []
+          actions: data.actions || [],
+          is_active: data.is_active || false
         })
         .select()
         .single();
