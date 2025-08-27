@@ -69,67 +69,63 @@ export const LeadTrendChart = ({
         )}
       </div>
       
-      <div className="h-[300px]">
-        <ChartContainer config={chartConfig}>
-          <ResponsiveContainer width="100%" height="100%">
-            {type === 'area' ? (
-              <AreaChart data={chartData}>
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(value) => format(new Date(value), 'dd/MM')}
-                />
-                <YAxis tick={{ fontSize: 12 }} />
-                <ChartTooltip 
-                  content={<ChartTooltipContent />}
-                  labelFormatter={(value) => format(new Date(value), 'dd/MM/yyyy', { locale: ptBR })}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="leads"
-                  stroke="hsl(var(--primary))"
-                  fill="hsl(var(--primary) / 0.1)"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="conversions"
-                  stroke="hsl(var(--secondary))"
-                  fill="hsl(var(--secondary) / 0.1)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            ) : (
-              <LineChart data={chartData}>
-                <XAxis 
-                  dataKey="date" 
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(value) => format(new Date(value), 'dd/MM')}
-                />
-                <YAxis tick={{ fontSize: 12 }} />
-                <ChartTooltip 
-                  content={<ChartTooltipContent />}
-                  labelFormatter={(value) => format(new Date(value), 'dd/MM/yyyy', { locale: ptBR })}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="leads"
-                  stroke="hsl(var(--primary))"
-                  strokeWidth={2}
-                  dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="conversions"
-                  stroke="hsl(var(--secondary))"
-                  strokeWidth={2}
-                  dot={{ fill: "hsl(var(--secondary))", strokeWidth: 2, r: 4 }}
-                />
-              </LineChart>
-            )}
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
+      <ChartContainer config={chartConfig} className="h-[300px] overflow-hidden">
+        {type === 'area' ? (
+          <AreaChart data={chartData}>
+            <XAxis 
+              dataKey="date" 
+              tick={{ fontSize: 12 }}
+              tickFormatter={(value) => format(new Date(value), 'dd/MM')}
+            />
+            <YAxis tick={{ fontSize: 12 }} />
+            <ChartTooltip 
+              content={<ChartTooltipContent />}
+              labelFormatter={(value) => format(new Date(value), 'dd/MM/yyyy', { locale: ptBR })}
+            />
+            <Area
+              type="monotone"
+              dataKey="leads"
+              stroke="hsl(var(--primary))"
+              fill="hsl(var(--primary) / 0.1)"
+              strokeWidth={2}
+            />
+            <Area
+              type="monotone"
+              dataKey="conversions"
+              stroke="hsl(var(--secondary))"
+              fill="hsl(var(--secondary) / 0.1)"
+              strokeWidth={2}
+            />
+          </AreaChart>
+        ) : (
+          <LineChart data={chartData}>
+            <XAxis 
+              dataKey="date" 
+              tick={{ fontSize: 12 }}
+              tickFormatter={(value) => format(new Date(value), 'dd/MM')}
+            />
+            <YAxis tick={{ fontSize: 12 }} />
+            <ChartTooltip 
+              content={<ChartTooltipContent />}
+              labelFormatter={(value) => format(new Date(value), 'dd/MM/yyyy', { locale: ptBR })}
+            />
+            <Line
+              type="monotone"
+              dataKey="leads"
+              stroke="hsl(var(--primary))"
+              strokeWidth={2}
+              dot={{ fill: "hsl(var(--primary))", strokeWidth: 2, r: 4 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="conversions"
+              stroke="hsl(var(--secondary))"
+              strokeWidth={2}
+              dot={{ fill: "hsl(var(--secondary))", strokeWidth: 2, r: 4 }}
+            />
+          </LineChart>
+        )}
+      </ChartContainer>
       
       <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
         <div className="text-center">

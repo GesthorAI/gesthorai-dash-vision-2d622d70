@@ -70,75 +70,71 @@ export const ScoreDistributionChart = ({
         </div>
       </div>
       
-      <div className="h-[300px]">
-        <ChartContainer config={chartConfig}>
-          <ResponsiveContainer width="100%" height="100%">
-            {type === 'bar' ? (
-              <BarChart data={distributionData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                <XAxis 
-                  dataKey="range" 
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis tick={{ fontSize: 12 }} />
-                <ChartTooltip 
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-background border rounded-lg p-3 shadow-md">
-                          <p className="font-semibold">{`Score ${label} - ${data.label}`}</p>
-                          <p className="text-sm">
-                            <span className="text-primary">Leads: {data.count}</span>
-                          </p>
-                          <p className="text-sm">
-                            <span className="text-muted-foreground">Percentual: {data.percentage}%</span>
-                          </p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                  {distributionData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Bar>
-              </BarChart>
-            ) : (
-              <PieChart>
-                <Pie
-                  data={distributionData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  dataKey="count"
-                  label={({ range, percentage }) => `${range}: ${percentage}%`}
-                >
-                  {distributionData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <ChartTooltip 
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-background border rounded-lg p-3 shadow-md">
-                          <p className="font-semibold">{`${data.label} (${data.range})`}</p>
-                          <p className="text-sm text-primary">Leads: {data.count}</p>
-                          <p className="text-sm text-muted-foreground">Percentual: {data.percentage}%</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-              </PieChart>
-            )}
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
+      <ChartContainer config={chartConfig} className="h-[300px] overflow-hidden">
+        {type === 'bar' ? (
+          <BarChart data={distributionData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+            <XAxis 
+              dataKey="range" 
+              tick={{ fontSize: 12 }}
+            />
+            <YAxis tick={{ fontSize: 12 }} />
+            <ChartTooltip 
+              content={({ active, payload, label }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload;
+                  return (
+                    <div className="bg-background border rounded-lg p-3 shadow-md">
+                      <p className="font-semibold">{`Score ${label} - ${data.label}`}</p>
+                      <p className="text-sm">
+                        <span className="text-primary">Leads: {data.count}</span>
+                      </p>
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">Percentual: {data.percentage}%</span>
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+              {distributionData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Bar>
+          </BarChart>
+        ) : (
+          <PieChart>
+            <Pie
+              data={distributionData}
+              cx="50%"
+              cy="50%"
+              outerRadius={100}
+              dataKey="count"
+              label={({ range, percentage }) => `${range}: ${percentage}%`}
+            >
+              {distributionData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <ChartTooltip 
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload;
+                  return (
+                    <div className="bg-background border rounded-lg p-3 shadow-md">
+                      <p className="font-semibold">{`${data.label} (${data.range})`}</p>
+                      <p className="text-sm text-primary">Leads: {data.count}</p>
+                      <p className="text-sm text-muted-foreground">Percentual: {data.percentage}%</p>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+          </PieChart>
+        )}
+      </ChartContainer>
       
       <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t">
         <div className="text-center">
