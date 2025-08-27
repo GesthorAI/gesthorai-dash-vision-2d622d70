@@ -3,24 +3,31 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-webhook-token',
 };
 
-interface LeadData {
-  name: string;
-  business: string;
-  city: string;
+interface IncomingLeadData {
+  name?: string;
+  business?: string;
+  city?: string;
   phone?: string;
   email?: string;
   source?: string;
   niche?: string;
   score?: number;
+  // WhatsApp specific fields from n8n
+  jid?: string;
+  exists?: boolean;
+  number?: string;
+  whatsapp_verified?: boolean;
+  collected_at?: string;
 }
 
 interface WebhookPayload {
   search_id: string;
   status: 'concluida' | 'falhou' | 'processando';
-  leads?: LeadData[];
+  leads?: IncomingLeadData[];
+  leads_count?: number;
   total_leads?: number;
   webhook_id?: string;
 }
@@ -70,7 +77,10 @@ serve(async (req) => {
     const payload: WebhookPayload = await req.json();
     console.log('Payload received:', JSON.stringify(payload, null, 2));
     
-    const { search_id, status, leads = [], total_leads, webhook_id } = payload;
+    const { search_id, status, leads = [], leads_count, total_leads, webhook_id } = payload;
+    
+    // Use leads_count if total_leads is not provided
+    const finalTotalLeads = total_leads ?? leads_count;
     
     // Validate required fields
     if (!search_id) {
@@ -100,8 +110,8 @@ serve(async (req) => {
     
     // Update search status and total_leads
     const updateData: any = { status };
-    if (total_leads !== undefined) {
-      updateData.total_leads = total_leads;
+    if (finalTotalLeads !== undefined) {
+      updateData.total_leads = finalTotalLeads;
     }
     if (webhook_id) {
       updateData.webhook_id = webhook_id;
@@ -124,32 +134,67 @@ serve(async (req) => {
     
     // Insert leads if provided and status is concluida
     if (leads.length > 0 && status === 'concluida') {
-      console.log(`Inserting ${leads.length} leads`);
+      console.log(`Processing ${leads.length} leads for insertion`);
       
-      // Prepare leads data with search_id, user authentication, and defaults
-      const leadsToInsert = leads.map(lead => ({
-        ...lead,
-        search_id: search_id,
-        user_id: searchData.user_id, // Use the search owner's user_id
-        niche: lead.niche || searchData.niche,
-        city: lead.city || searchData.city,
-        score: lead.score || Math.floor(Math.random() * 10) + 1, // Random score if not provided
-        status: 'novo'
-      }));
+      // Filter and transform leads data to match database schema
+      const validLeads = leads.filter(lead => {
+        // Only include leads that have either whatsapp data or basic business info
+        return lead.whatsapp_verified || lead.name || lead.business;
+      });
       
-      const { error: leadsError } = await supabase
-        .from('leads')
-        .insert(leadsToInsert);
+      console.log(`Found ${validLeads.length} valid leads out of ${leads.length} total leads`);
+      
+      if (validLeads.length > 0) {
+        // Transform leads data with proper field mapping
+        const leadsToInsert = validLeads.map((lead, index) => {
+          const transformedLead = {
+            // Required fields with fallbacks
+            name: lead.name || `Lead ${index + 1}`,
+            business: lead.business || lead.name || `Business ${index + 1}`,
+            city: lead.city || searchData.city,
+            
+            // Optional basic fields
+            phone: lead.phone || lead.number || null,
+            email: lead.email || null,
+            source: lead.source || 'webhook',
+            niche: lead.niche || searchData.niche,
+            score: lead.score || Math.floor(Math.random() * 10) + 1,
+            status: 'novo',
+            
+            // WhatsApp specific fields - proper mapping
+            whatsapp_jid: lead.jid || null,
+            whatsapp_exists: lead.exists ?? null,
+            whatsapp_number: lead.number || null,
+            whatsapp_verified: lead.whatsapp_verified ?? null,
+            collected_at: lead.collected_at || null,
+            
+            // Metadata
+            search_id: search_id,
+            user_id: searchData.user_id,
+          };
+          
+          return transformedLead;
+        });
         
-      if (leadsError) {
-        console.error('Error inserting leads:', leadsError);
-        return new Response(
-          JSON.stringify({ error: 'Failed to insert leads', details: leadsError }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        console.log('Sample transformed lead:', JSON.stringify(leadsToInsert[0], null, 2));
+        console.log(`Inserting ${leadsToInsert.length} transformed leads`);
+        
+        const { error: leadsError } = await supabase
+          .from('leads')
+          .insert(leadsToInsert);
+          
+        if (leadsError) {
+          console.error('Error inserting leads:', leadsError);
+          return new Response(
+            JSON.stringify({ error: 'Failed to insert leads', details: leadsError }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        console.log(`Successfully inserted ${leadsToInsert.length} leads`);
+      } else {
+        console.log('No valid leads to insert');
       }
-      
-      console.log('Leads inserted successfully');
     }
     
     return new Response(
