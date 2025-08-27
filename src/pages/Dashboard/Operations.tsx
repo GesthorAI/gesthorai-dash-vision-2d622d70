@@ -33,7 +33,7 @@ export const Operations = () => {
   
   const { data: leads = [] } = useLeads(temporaryFilters);
 
-  const hasTemporaryFilters = Object.keys(temporaryFilters).length > 0;
+  const hasTemporaryFilters = temporaryFilters && Object.keys(temporaryFilters).length > 0;
 
   const handleActionCardClick = (filters: any) => {
     // Apply filters and switch to bulk actions tab
