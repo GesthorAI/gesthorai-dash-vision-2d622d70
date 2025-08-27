@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Lead } from "@/hooks/useLeads";
 import { useLeadScoring } from "@/hooks/useLeadScoring";
+import { useSelection } from "@/hooks/useSelection";
 import { Star, Phone, Mail, MapPin, Building, MessageSquare, Edit, Trash2, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -41,7 +42,8 @@ const STATUS_OPTIONS = [
 
 export const LeadsTable = ({ leads, onLeadsChange, showActions = true }: LeadsTableProps) => {
   const { scoredLeads } = useLeadScoring(leads);
-  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [localSelectedLeads, setLocalSelectedLeads] = useState<string[]>([]);
+  const { selectedLeads: globalSelectedLeads, toggleLead, isSelected, clearSelection } = useSelection();
   const [sortBy, setSortBy] = useState<'score' | 'created_at' | 'name'>('score');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [scoreFilter, setScoreFilter] = useState<string>('all');
@@ -146,22 +148,22 @@ export const LeadsTable = ({ leads, onLeadsChange, showActions = true }: LeadsTa
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedLeads(filteredAndSortedLeads.map(lead => lead.id));
+      filteredAndSortedLeads.forEach(lead => {
+        if (!isSelected(lead.id)) {
+          toggleLead(lead);
+        }
+      });
     } else {
-      setSelectedLeads([]);
+      clearSelection();
     }
   };
 
-  const handleSelectLead = (leadId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedLeads(prev => [...prev, leadId]);
-    } else {
-      setSelectedLeads(prev => prev.filter(id => id !== leadId));
-    }
+  const handleSelectLead = (lead: Lead, checked: boolean) => {
+    toggleLead(lead);
   };
 
   const bulkUpdateStatus = async (newStatus: string) => {
-    if (selectedLeads.length === 0) {
+    if (globalSelectedLeads.length === 0) {
       toast.error("Selecione pelo menos um lead");
       return;
     }
@@ -170,12 +172,12 @@ export const LeadsTable = ({ leads, onLeadsChange, showActions = true }: LeadsTa
       const { error } = await supabase
         .from('leads')
         .update({ status: newStatus })
-        .in('id', selectedLeads);
+        .in('id', globalSelectedLeads.map(l => l.id));
 
       if (error) throw error;
       
-      toast.success(`${selectedLeads.length} leads atualizados com sucesso!`);
-      setSelectedLeads([]);
+      toast.success(`${globalSelectedLeads.length} leads atualizados com sucesso!`);
+      clearSelection();
       onLeadsChange?.();
     } catch (error) {
       toast.error("Erro ao atualizar leads");
@@ -239,10 +241,10 @@ export const LeadsTable = ({ leads, onLeadsChange, showActions = true }: LeadsTa
           </div>
         </div>
 
-        {selectedLeads.length > 0 && (
+        {globalSelectedLeads.length > 0 && (
           <div className="flex gap-2">
             <span className="text-sm text-muted-foreground self-center">
-              {selectedLeads.length} selecionados
+              {globalSelectedLeads.length} selecionados
             </span>
             <Select onValueChange={bulkUpdateStatus}>
               <SelectTrigger className="w-[160px]">
@@ -267,7 +269,7 @@ export const LeadsTable = ({ leads, onLeadsChange, showActions = true }: LeadsTa
             <TableRow>
               <TableHead className="w-[50px]">
                 <Checkbox 
-                  checked={selectedLeads.length === filteredAndSortedLeads.length && filteredAndSortedLeads.length > 0}
+                  checked={filteredAndSortedLeads.length > 0 && filteredAndSortedLeads.every(lead => isSelected(lead.id))}
                   onCheckedChange={handleSelectAll}
                 />
               </TableHead>
@@ -289,8 +291,8 @@ export const LeadsTable = ({ leads, onLeadsChange, showActions = true }: LeadsTa
                 <TableRow key={lead.id}>
                   <TableCell>
                     <Checkbox 
-                      checked={selectedLeads.includes(lead.id)}
-                      onCheckedChange={(checked) => handleSelectLead(lead.id, checked as boolean)}
+                      checked={isSelected(lead.id)}
+                      onCheckedChange={(checked) => handleSelectLead(lead, checked as boolean)}
                     />
                   </TableCell>
                   

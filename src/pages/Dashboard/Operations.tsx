@@ -8,8 +8,10 @@ import { KPICard } from "@/components/Dashboard/KPICard";
 import { BulkActionsPanel } from "@/components/Operations/BulkActionsPanel";
 import { WorkflowAutomation } from "@/components/Operations/WorkflowAutomation";
 import { LeadAssignment } from "@/components/Operations/LeadAssignment";
-import { useLeads } from "@/hooks/useLeads";
+import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useRecentSearches } from "@/hooks/useSearches";
+import { useNavigation } from "@/hooks/useNavigation";
+import { useFilters } from "@/hooks/useFilters";
 import { 
   Clock, 
   AlertTriangle, 
@@ -49,7 +51,8 @@ const ActionCard = ({
   priority, 
   count, 
   action, 
-  icon: Icon 
+  icon: Icon,
+  onClick 
 }: {
   title: string;
   description: string;
@@ -57,6 +60,7 @@ const ActionCard = ({
   count: number;
   action: string;
   icon: any;
+  onClick?: () => void;
 }) => (
   <Card className="p-4">
     <div className="flex items-start justify-between mb-3">
@@ -72,7 +76,7 @@ const ActionCard = ({
         <span className="text-2xl font-bold">{count}</span>
         <span className="text-sm text-muted-foreground">itens</span>
       </div>
-      <Button size="sm" variant="outline">
+      <Button size="sm" variant="outline" onClick={onClick}>
         {action}
       </Button>
     </div>
@@ -80,8 +84,9 @@ const ActionCard = ({
 );
 
 export const Operations = () => {
-  const { data: allLeads = [], isLoading: leadsLoading } = useLeads();
+  const { data: allLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime();
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(50);
+  const { applyFiltersAndNavigate } = useNavigation();
   const [selectedLeads, setSelectedLeads] = useState<any[]>([]);
 
   // Calculate operational metrics
@@ -233,6 +238,10 @@ export const Operations = () => {
             count={newLeads.length}
             action="Contactar"
             icon={Phone}
+            onClick={() => applyFiltersAndNavigate('operations', { 
+              tab: 'bulk-actions',
+              filters: { dateRange: 1, status: 'novo' }
+            })}
           />
           <ActionCard
             title="Follow-up Necessário" 
@@ -241,6 +250,10 @@ export const Operations = () => {
             count={needsFollowUp.length}
             action="Fazer Follow-up"
             icon={MessageSquare}
+            onClick={() => applyFiltersAndNavigate('operations', { 
+              tab: 'bulk-actions',
+              filters: { score: { min: 5 }, dateRange: 7 }
+            })}
           />
           <ActionCard
             title="Leads Premium"
@@ -249,6 +262,10 @@ export const Operations = () => {
             count={highQualityLeads.length}
             action="Priorizar"
             icon={Target}
+            onClick={() => applyFiltersAndNavigate('operations', { 
+              tab: 'bulk-actions',
+              filters: { score: { min: 8 }, dateRange: 7 }
+            })}
           />
           <ActionCard
             title="Dados Incompletos"
@@ -257,6 +274,10 @@ export const Operations = () => {
             count={incompleteLeads.length}
             action="Completar"
             icon={Users}
+            onClick={() => applyFiltersAndNavigate('operations', { 
+              tab: 'bulk-actions',
+              filters: { score: { min: 6 }, hasEmail: false, hasPhone: false }
+            })}
           />
           <ActionCard
             title="Buscas com Erro"
@@ -361,8 +382,8 @@ export const Operations = () => {
 
         <TabsContent value="bulk-actions" className="space-y-6">
           <BulkActionsPanel 
-            selectedLeads={selectedLeads}
-            onClearSelection={() => setSelectedLeads([])}
+            selectedLeads={[]} // Will use global selection
+            onClearSelection={() => {}}
           />
         </TabsContent>
 

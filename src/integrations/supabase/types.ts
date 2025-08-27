@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      assignment_rules: {
+        Row: {
+          assign_to: string[]
+          created_at: string
+          criteria: Json
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          assign_to?: string[]
+          created_at?: string
+          criteria?: Json
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          assign_to?: string[]
+          created_at?: string
+          criteria?: Json
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       communications: {
         Row: {
           channel: string
@@ -134,8 +167,34 @@ export type Database = {
         }
         Relationships: []
       }
+      lead_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string
+          id: string
+          lead_id: string
+          team_member_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by: string
+          id?: string
+          lead_id: string
+          team_member_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string
+          id?: string
+          lead_id?: string
+          team_member_id?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
+          archived_at: string | null
+          assigned_to: string | null
           business: string
           city: string
           collected_at: string | null
@@ -161,6 +220,8 @@ export type Database = {
           whatsapp_verified: boolean | null
         }
         Insert: {
+          archived_at?: string | null
+          assigned_to?: string | null
           business: string
           city: string
           collected_at?: string | null
@@ -186,6 +247,8 @@ export type Database = {
           whatsapp_verified?: boolean | null
         }
         Update: {
+          archived_at?: string | null
+          assigned_to?: string | null
           business?: string
           city?: string
           collected_at?: string | null
@@ -383,6 +446,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      team_members: {
+        Row: {
+          capacity: number
+          created_at: string
+          email: string
+          id: string
+          name: string
+          role: string
+          specialties: string[] | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          capacity?: number
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          role?: string
+          specialties?: string[] | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          capacity?: number
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          role?: string
+          specialties?: string[] | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workflows: {
+        Row: {
+          actions: Json
+          conditions: Json
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          trigger_config: Json
+          trigger_type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          actions?: Json
+          conditions?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          trigger_config?: Json
+          trigger_type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          actions?: Json
+          conditions?: Json
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          trigger_config?: Json
+          trigger_type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {

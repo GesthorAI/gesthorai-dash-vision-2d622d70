@@ -25,16 +25,24 @@ export interface Lead {
   collected_at?: string;
   normalized_phone?: string;
   normalized_email?: string;
+  archived_at?: string;
+  assigned_to?: string;
 }
 
-interface LeadFilters {
+export interface LeadFilters {
+  status?: string;
   niche?: string;
   city?: string;
-  status?: string;
   dateRange?: number;
-  searchId?: string;
-  // Advanced filters
+  score?: { min?: number; max?: number };
+  hasEmail?: boolean;
+  hasPhone?: boolean;
+  source?: string[];
   search?: string;
+  includeArchived?: boolean;
+  assignedTo?: string;
+  searchId?: string;
+  // Legacy advanced filters
   scoreMin?: number;
   scoreMax?: number;
   dateFrom?: string;
@@ -43,8 +51,6 @@ interface LeadFilters {
   niches?: string[];
   statuses?: string[];
   sources?: string[];
-  hasPhone?: boolean;
-  hasEmail?: boolean;
   hasWhatsapp?: boolean;
 }
 
@@ -55,98 +61,125 @@ export const useLeads = (filters?: LeadFilters) => {
     queryKey: ["leads", filters, user?.id],
     queryFn: async () => {
       if (!user) return [];
-      
-      let query = supabase.from("leads").select("*").eq("user_id", user.id);
-      
-      if (filters?.niche) {
-        query = query.eq("niche", filters.niche);
+
+      let query = supabase
+        .from('leads')
+        .select('*')
+        .eq('user_id', user.id);
+
+      // By default, exclude archived leads unless explicitly requested
+      if (!filters?.includeArchived) {
+        query = query.is('archived_at', null);
       }
-      
-      if (filters?.city) {
-        query = query.eq("city", filters.city);
-      }
-      
+
+      // Apply filters
       if (filters?.status) {
-        query = query.eq("status", filters.status);
+        query = query.eq('status', filters.status);
       }
-      
+
+      if (filters?.niche) {
+        query = query.eq('niche', filters.niche);
+      }
+
+      if (filters?.city) {
+        query = query.eq('city', filters.city);
+      }
+
+      if (filters?.assignedTo) {
+        query = query.eq('assigned_to', filters.assignedTo);
+      }
+
       if (filters?.searchId) {
-        query = query.eq("search_id", filters.searchId);
+        query = query.eq('search_id', filters.searchId);
       }
-      
+
       if (filters?.dateRange) {
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - filters.dateRange);
-        query = query.gte("created_at", startDate.toISOString());
+        const dateThreshold = new Date();
+        dateThreshold.setDate(dateThreshold.getDate() - filters.dateRange);
+        query = query.gte('created_at', dateThreshold.toISOString());
       }
-      
-      // Advanced filters
+
+      if (filters?.score?.min !== undefined) {
+        query = query.gte('score', filters.score.min);
+      }
+
+      if (filters?.score?.max !== undefined) {
+        query = query.lte('score', filters.score.max);
+      }
+
+      if (filters?.hasEmail !== undefined) {
+        if (filters.hasEmail) {
+          query = query.not('email', 'is', null).neq('email', '');
+        } else {
+          query = query.or('email.is.null,email.eq.');
+        }
+      }
+
+      if (filters?.hasPhone !== undefined) {
+        if (filters.hasPhone) {
+          query = query.not('phone', 'is', null).neq('phone', '');
+        } else {
+          query = query.or('phone.is.null,phone.eq.');
+        }
+      }
+
+      if (filters?.source && filters.source.length > 0) {
+        query = query.in('source', filters.source);
+      }
+
       if (filters?.search) {
         query = query.or(`name.ilike.%${filters.search}%,business.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
       }
-      
+
+      // Legacy filters for backwards compatibility
       if (filters?.scoreMin !== undefined) {
-        query = query.gte("score", filters.scoreMin);
+        query = query.gte('score', filters.scoreMin);
       }
-      
+
       if (filters?.scoreMax !== undefined) {
-        query = query.lte("score", filters.scoreMax);
+        query = query.lte('score', filters.scoreMax);
       }
-      
+
       if (filters?.dateFrom) {
-        query = query.gte("created_at", filters.dateFrom);
+        query = query.gte('created_at', filters.dateFrom);
       }
-      
+
       if (filters?.dateTo) {
-        query = query.lte("created_at", filters.dateTo);
+        query = query.lte('created_at', filters.dateTo);
       }
-      
+
       if (filters?.cities?.length) {
-        query = query.in("city", filters.cities);
+        query = query.in('city', filters.cities);
       }
-      
+
       if (filters?.niches?.length) {
-        query = query.in("niche", filters.niches);
+        query = query.in('niche', filters.niches);
       }
-      
+
       if (filters?.statuses?.length) {
-        query = query.in("status", filters.statuses);
+        query = query.in('status', filters.statuses);
       }
-      
+
       if (filters?.sources?.length) {
-        query = query.in("source", filters.sources);
+        query = query.in('source', filters.sources);
       }
-      
-      if (filters?.hasPhone !== undefined) {
-        if (filters.hasPhone) {
-          query = query.not("phone", "is", null);
-        } else {
-          query = query.is("phone", null);
-        }
-      }
-      
-      if (filters?.hasEmail !== undefined) {
-        if (filters.hasEmail) {
-          query = query.not("email", "is", null);
-        } else {
-          query = query.is("email", null);
-        }
-      }
-      
+
       if (filters?.hasWhatsapp !== undefined) {
         if (filters.hasWhatsapp) {
-          query = query.eq("whatsapp_verified", true);
+          query = query.eq('whatsapp_verified', true);
         } else {
-          query = query.neq("whatsapp_verified", true);
+          query = query.neq('whatsapp_verified', true);
         }
       }
-      
-      const { data, error } = await query.order("created_at", { ascending: false });
-      
+
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error } = await query;
       if (error) throw error;
+
       return data as Lead[];
     },
-    enabled: !!user,
+    enabled: !!user
   });
 };
 
@@ -320,6 +353,47 @@ export const updateLeadStatus = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
+    }
+  });
+};
+
+export const useArchiveLead = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ id, archive }: { id: string; archive: boolean }) => {
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ archived_at: archive ? new Date().toISOString() : null })
+        .eq('id', id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    }
+  });
+};
+
+export const useBulkArchiveLeads = () => {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async ({ ids, archive }: { ids: string[]; archive: boolean }) => {
+      const { data, error } = await supabase
+        .from('leads')
+        .update({ archived_at: archive ? new Date().toISOString() : null })
+        .in('id', ids)
+        .select();
+      
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     }
   });
 };

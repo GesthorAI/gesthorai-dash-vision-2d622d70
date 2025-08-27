@@ -4,10 +4,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Lead } from "@/hooks/useLeads";
-import { updateLeadStatus } from "@/hooks/useLeads";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Lead, updateLeadStatus, useBulkArchiveLeads } from "@/hooks/useLeads";
+import { useCreateTask } from "@/hooks/useTasks";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { LeadsTableWithData } from "./LeadsTableWithData";
+import { useSelection } from "@/hooks/useSelection";
 import { 
   CheckSquare, 
   Users, 
@@ -26,17 +31,29 @@ interface BulkActionsPanelProps {
   onClearSelection: () => void;
 }
 
-export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkActionsPanelProps) => {
+export const BulkActionsPanel = ({ selectedLeads: propSelectedLeads, onClearSelection }: BulkActionsPanelProps) => {
   const [action, setAction] = useState<string>("");
   const [newStatus, setNewStatus] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const [dueDate, setDueDate] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
   
   const { toast } = useToast();
+  const { user } = useAuth();
   const updateStatus = updateLeadStatus();
+  const createTask = useCreateTask();
+  const bulkArchive = useBulkArchiveLeads();
+  
+  // Use global selection store
+  const { selectedLeads, clearSelection } = useSelection();
+  
+  // Use prop leads if provided, otherwise use global selection
+  const activeSelectedLeads = propSelectedLeads && propSelectedLeads.length > 0 ? propSelectedLeads : selectedLeads;
+  const handleClearSelection = onClearSelection || clearSelection;
 
   const handleBulkAction = async () => {
-    if (!action || selectedLeads.length === 0) return;
+    if (!action || activeSelectedLeads.length === 0) return;
+    if (!user) return;
 
     setIsProcessing(true);
     
@@ -52,31 +69,123 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
             return;
           }
           
-          for (const lead of selectedLeads) {
+          for (const lead of activeSelectedLeads) {
             await updateStatus.mutateAsync({ id: lead.id, status: newStatus });
           }
           
           toast({
             title: "Sucesso",
-            description: `${selectedLeads.length} leads atualizados para "${newStatus}"`,
+            description: `${activeSelectedLeads.length} leads atualizados para "${newStatus}"`,
+          });
+          break;
+          
+        case 'schedule-call':
+          if (!dueDate) {
+            toast({
+              title: "Erro",
+              description: "Selecione uma data para agendamento",
+              variant: "destructive"
+            });
+            return;
+          }
+          
+          let successCount = 0;
+          for (const lead of activeSelectedLeads) {
+            try {
+              await createTask.mutateAsync({
+                title: `Ligação para ${lead.name}`,
+                description: `Contatar ${lead.name} da empresa ${lead.business}${notes ? `\n\nObservações: ${notes}` : ''}`,
+                due_date: new Date(dueDate).toISOString(),
+                type: 'call',
+                priority: 'media',
+                lead_id: lead.id
+              });
+              successCount++;
+            } catch (error) {
+              console.error('Error creating task for lead:', lead.id, error);
+            }
+          }
+          
+          toast({
+            title: "Agendamento concluído",
+            description: `${successCount} ligações agendadas com sucesso`,
+          });
+          break;
+          
+        case 'send-email':
+          if (!notes) {
+            toast({
+              title: "Erro",
+              description: "Digite uma mensagem para enviar",
+              variant: "destructive"
+            });
+            return;
+          }
+          
+          let emailSuccessCount = 0;
+          for (const lead of activeSelectedLeads) {
+            try {
+              if (!lead.email) continue;
+              
+              const { error } = await supabase
+                .from('communications')
+                .insert({
+                  user_id: user.id,
+                  lead_id: lead.id,
+                  type: 'email',
+                  channel: 'email',
+                  status: 'queued',
+                  message: notes,
+                  metadata: {
+                    to: lead.email,
+                    subject: `Contato - ${lead.business}`,
+                    sent_via: 'bulk_action'
+                  }
+                });
+              
+              if (!error) emailSuccessCount++;
+            } catch (error) {
+              console.error('Error logging email for lead:', lead.id, error);
+            }
+          }
+          
+          toast({
+            title: "Emails registrados",
+            description: `${emailSuccessCount} emails registrados para envio. A entrega real pode ser configurada posteriormente.`,
           });
           break;
           
         case 'export':
-          const csvContent = generateCSV(selectedLeads);
+          const csvContent = generateCSV(activeSelectedLeads);
           downloadCSV(csvContent, 'leads-selecionados.csv');
           
           toast({
             title: "Exportação concluída",
-            description: `${selectedLeads.length} leads exportados com sucesso`,
+            description: `${activeSelectedLeads.length} leads exportados com sucesso`,
           });
           break;
           
         case 'archive':
-          // Implement archive logic
+          await bulkArchive.mutateAsync({ 
+            ids: activeSelectedLeads.map(l => l.id), 
+            archive: true 
+          });
+          
           toast({
-            title: "Arquivamento simulado",
-            description: `${selectedLeads.length} leads seriam arquivados`,
+            title: "Arquivamento concluído",
+            description: `${activeSelectedLeads.length} leads arquivados com sucesso`,
+          });
+          break;
+          
+        case 'unarchive':
+          await bulkArchive.mutateAsync({ 
+            ids: activeSelectedLeads.map(l => l.id), 
+            archive: false 
+          });
+          
+          toast({
+            title: "Desarquivamento concluído",
+            description: `${activeSelectedLeads.length} leads desarquivados com sucesso`,
           });
           break;
           
@@ -87,10 +196,11 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
           });
       }
       
-      onClearSelection();
+      handleClearSelection();
       setAction("");
       setNewStatus("");
       setNotes("");
+      setDueDate("");
       
     } catch (error) {
       toast({
@@ -132,16 +242,21 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
     document.body.removeChild(link);
   };
 
-  if (selectedLeads.length === 0) {
+  if (activeSelectedLeads.length === 0) {
     return (
-      <Card className="border-dashed">
-        <CardContent className="pt-6 text-center">
-          <CheckSquare className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-          <p className="text-muted-foreground">
-            Selecione leads para executar ações em lote
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-6">
+        <Card className="border-dashed">
+          <CardContent className="pt-6 text-center">
+            <CheckSquare className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+            <p className="text-muted-foreground mb-4">
+              Selecione leads na tabela abaixo para executar ações em lote
+            </p>
+          </CardContent>
+        </Card>
+        
+        {/* Embedded LeadsTable for selection */}
+        <LeadsTableWithData />
+      </div>
     );
   }
 
@@ -151,7 +266,7 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
         <CardTitle className="flex items-center gap-2">
           <Users className="h-5 w-5" />
           Ações em Lote
-          <Badge variant="secondary">{selectedLeads.length} selecionados</Badge>
+          <Badge variant="secondary">{activeSelectedLeads.length} selecionados</Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -192,6 +307,12 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
                   Arquivar
                 </div>
               </SelectItem>
+              <SelectItem value="unarchive">
+                <div className="flex items-center gap-2">
+                  <Upload className="h-4 w-4" />
+                  Desarquivar
+                </div>
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -215,19 +336,39 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
           </div>
         )}
 
-        {(action === 'send-email' || action === 'schedule-call') && (
+        {action === 'schedule-call' && (
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Data e Hora</Label>
+              <Input
+                type="datetime-local"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="mt-2"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Observações</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Adicione observações sobre o agendamento..."
+                rows={3}
+                className="mt-2"
+              />
+            </div>
+          </div>
+        )}
+        
+        {action === 'send-email' && (
           <div>
-            <label className="text-sm font-medium mb-2 block">
-              {action === 'send-email' ? 'Mensagem' : 'Observações'}
-            </label>
+            <Label className="text-sm font-medium">Mensagem</Label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder={action === 'send-email' ? 
-                'Digite a mensagem que será enviada...' : 
-                'Adicione observações sobre o agendamento...'
-              }
-              rows={3}
+              placeholder="Digite a mensagem que será enviada..."
+              rows={4}
+              className="mt-2"
             />
           </div>
         )}
@@ -242,7 +383,7 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
           </Button>
           <Button 
             variant="outline" 
-            onClick={onClearSelection}
+            onClick={handleClearSelection}
           >
             Limpar Seleção
           </Button>
@@ -252,7 +393,7 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
         <div className="pt-4 border-t">
           <h4 className="text-sm font-medium mb-2">Leads Selecionados</h4>
           <div className="space-y-1 max-h-32 overflow-y-auto">
-            {selectedLeads.slice(0, 5).map((lead) => (
+            {activeSelectedLeads.slice(0, 5).map((lead) => (
               <div key={lead.id} className="flex items-center justify-between text-xs">
                 <span className="truncate">{lead.name} - {lead.business}</span>
                 <Badge variant="outline" className="text-xs">
@@ -260,9 +401,9 @@ export const BulkActionsPanel = ({ selectedLeads, onClearSelection }: BulkAction
                 </Badge>
               </div>
             ))}
-            {selectedLeads.length > 5 && (
+            {activeSelectedLeads.length > 5 && (
               <div className="text-xs text-muted-foreground">
-                ... e mais {selectedLeads.length - 5} leads
+                ... e mais {activeSelectedLeads.length - 5} leads
               </div>
             )}
           </div>
