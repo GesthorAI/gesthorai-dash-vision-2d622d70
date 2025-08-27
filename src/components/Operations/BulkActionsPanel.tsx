@@ -13,6 +13,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { LeadsTableWithData } from "./LeadsTableWithData";
 import { useSelection } from "@/hooks/useSelection";
+import { batchProcessor } from "@/utils/batchProcessor";
+import { BulkOperationProgress } from "./LoadingStates";
 import { 
   CheckSquare, 
   Users, 
@@ -37,6 +39,11 @@ export const BulkActionsPanel = ({ selectedLeads: propSelectedLeads, onClearSele
   const [notes, setNotes] = useState<string>("");
   const [dueDate, setDueDate] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{
+    operation: string;
+    current: number;
+    total: number;
+  } | null>(null);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -69,9 +76,24 @@ export const BulkActionsPanel = ({ selectedLeads: propSelectedLeads, onClearSele
             return;
           }
           
-          for (const lead of activeSelectedLeads) {
-            await updateStatus.mutateAsync({ id: lead.id, status: newStatus });
-          }
+          setBulkProgress({
+            operation: `Atualizando status para ${newStatus}`,
+            current: 0,
+            total: activeSelectedLeads.length
+          });
+
+          await batchProcessor(
+            activeSelectedLeads,
+            async (lead) => {
+              await updateStatus.mutateAsync({ id: lead.id, status: newStatus });
+            },
+            {
+              batchSize: 10,
+              onProgress: (current, total) => {
+                setBulkProgress(prev => prev ? { ...prev, current } : null);
+              }
+            }
+          );
           
           toast({
             title: "Sucesso",
@@ -89,9 +111,16 @@ export const BulkActionsPanel = ({ selectedLeads: propSelectedLeads, onClearSele
             return;
           }
           
+          setBulkProgress({
+            operation: "Agendando ligações",
+            current: 0,
+            total: activeSelectedLeads.length
+          });
+
           let successCount = 0;
-          for (const lead of activeSelectedLeads) {
-            try {
+          await batchProcessor(
+            activeSelectedLeads,
+            async (lead) => {
               await createTask.mutateAsync({
                 title: `Ligação para ${lead.name}`,
                 description: `Contatar ${lead.name} da empresa ${lead.business}${notes ? `\n\nObservações: ${notes}` : ''}`,
@@ -101,10 +130,14 @@ export const BulkActionsPanel = ({ selectedLeads: propSelectedLeads, onClearSele
                 lead_id: lead.id
               });
               successCount++;
-            } catch (error) {
-              console.error('Error creating task for lead:', lead.id, error);
+            },
+            {
+              batchSize: 5,
+              onProgress: (current, total) => {
+                setBulkProgress(prev => prev ? { ...prev, current } : null);
+              }
             }
-          }
+          );
           
           toast({
             title: "Agendamento concluído",
@@ -201,8 +234,10 @@ export const BulkActionsPanel = ({ selectedLeads: propSelectedLeads, onClearSele
       setNewStatus("");
       setNotes("");
       setDueDate("");
+      setBulkProgress(null);
       
     } catch (error) {
+      setBulkProgress(null);
       toast({
         title: "Erro na operação",
         description: "Ocorreu um erro ao executar a ação em lote",
@@ -261,14 +296,23 @@ export const BulkActionsPanel = ({ selectedLeads: propSelectedLeads, onClearSele
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Ações em Lote
-          <Badge variant="secondary">{activeSelectedLeads.length} selecionados</Badge>
-        </CardTitle>
-      </CardHeader>
+    <div className="space-y-4">
+      {bulkProgress && (
+        <BulkOperationProgress
+          current={bulkProgress.current}
+          total={bulkProgress.total}
+          operation={bulkProgress.operation}
+        />
+      )}
+      
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Ações em Lote
+            <Badge variant="secondary">{activeSelectedLeads.length} selecionados</Badge>
+          </CardTitle>
+        </CardHeader>
       <CardContent className="space-y-4">
         <div>
           <label className="text-sm font-medium mb-2 block">Ação</label>
@@ -410,5 +454,6 @@ export const BulkActionsPanel = ({ selectedLeads: propSelectedLeads, onClearSele
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 };

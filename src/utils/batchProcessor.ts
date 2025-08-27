@@ -9,6 +9,37 @@ export interface BatchProcessOptions {
   onBatchComplete?: (batchIndex: number, batchResults: any[]) => void;
 }
 
+export interface BatchProcessorOptions {
+  batchSize?: number;
+  delayMs?: number;
+  onProgress?: (completed: number, total: number) => void;
+}
+
+/**
+ * Generic batch processor for individual items
+ */
+export const batchProcessor = async <T>(
+  items: T[],
+  processor: (item: T) => Promise<void>,
+  options: BatchProcessorOptions = {}
+): Promise<void> => {
+  const { batchSize = 10, delayMs = 100, onProgress } = options;
+  
+  for (let i = 0; i < items.length; i += batchSize) {
+    const batch = items.slice(i, i + batchSize);
+    
+    // Process batch items in parallel
+    await Promise.all(batch.map(item => processor(item)));
+    
+    onProgress?.(Math.min(i + batchSize, items.length), items.length);
+    
+    // Add delay between batches if specified
+    if (delayMs > 0 && i + batchSize < items.length) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+};
+
 /**
  * Process items in batches with optional delay between batches
  */
