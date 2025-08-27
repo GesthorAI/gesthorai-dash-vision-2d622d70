@@ -7,7 +7,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useLeads, useCreateLead } from "@/hooks/useLeads";
-import { useLeadScoring } from "@/hooks/useLeadScoring";
 import { 
   Upload, 
   Download, 

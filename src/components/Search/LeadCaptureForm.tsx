@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateLead } from "@/hooks/useLeads";
-import { useLeadScoring } from "@/hooks/useLeadScoring";
 import { 
   UserPlus, 
   Building, 
@@ -46,6 +45,7 @@ export const LeadCaptureForm = () => {
   const [previewScore, setPreviewScore] = useState<number | null>(null);
   const [customNiche, setCustomNiche] = useState("");
   const [isCustomNiche, setIsCustomNiche] = useState(false);
+  const [refreshNiches, setRefreshNiches] = useState(0);
 
   const { toast } = useToast();
   const createLead = useCreateLead();
@@ -61,7 +61,7 @@ export const LeadCaptureForm = () => {
     const stored = localStorage.getItem('customNiches');
     const customNiches = stored ? JSON.parse(stored) : [];
     return [...baseNiches, ...customNiches];
-  }, []);
+  }, [refreshNiches]);
 
   // Format phone number as user types
   const formatPhoneNumber = (value: string) => {
@@ -127,6 +127,8 @@ export const LeadCaptureForm = () => {
       if (!existingNiches.includes(customNiche.trim())) {
         const newNiches = [...existingNiches, customNiche.trim()];
         localStorage.setItem('customNiches', JSON.stringify(newNiches));
+        // Force niches list to refresh
+        setRefreshNiches(prev => prev + 1);
       }
       
       handleInputChange('niche', customNiche.trim());
