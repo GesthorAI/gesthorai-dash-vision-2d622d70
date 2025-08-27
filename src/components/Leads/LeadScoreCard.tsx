@@ -31,11 +31,13 @@ export const LeadScoreCard = ({
 }: LeadScoreCardProps) => {
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [customWeights, setCustomWeights] = useState<ScoringWeights>({
-    contactInfo: 0.25,
-    businessProfile: 0.30,
-    location: 0.15,
-    niche: 0.20,
-    engagement: 0.10
+    contactInfo: 0.20,
+    businessProfile: 0.25,
+    location: 0.12,
+    niche: 0.15,
+    engagement: 0.15,
+    whatsapp: 0.08,
+    dataQuality: 0.05
   });
 
   const getScoreColor = (score: number) => {
@@ -131,7 +133,9 @@ export const LeadScoreCard = ({
                         {key === 'contactInfo' ? 'Informações de Contato' :
                          key === 'businessProfile' ? 'Perfil do Negócio' :
                          key === 'location' ? 'Localização' :
-                         key === 'niche' ? 'Nicho' : 'Engajamento'}
+                         key === 'niche' ? 'Nicho' :
+                         key === 'engagement' ? 'Engajamento' :
+                         key === 'whatsapp' ? 'WhatsApp' : 'Qualidade dos Dados'}
                       </Label>
                       <span className="text-sm font-medium">{(value * 100).toFixed(0)}%</span>
                     </div>

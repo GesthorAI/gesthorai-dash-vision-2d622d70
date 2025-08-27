@@ -18,6 +18,13 @@ export interface Lead {
   user_id: string;
   created_at: string;
   updated_at: string;
+  whatsapp_number?: string;
+  whatsapp_verified?: boolean;
+  whatsapp_exists?: boolean;
+  whatsapp_jid?: string;
+  collected_at?: string;
+  normalized_phone?: string;
+  normalized_email?: string;
 }
 
 interface LeadFilters {
