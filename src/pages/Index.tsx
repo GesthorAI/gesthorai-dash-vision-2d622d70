@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { DashboardLayout } from "@/components/Layout/DashboardLayout";
+import { useNavigation } from "@/hooks/useNavigation";
 import { Overview } from "@/pages/Dashboard/Overview";
 import { LeadSearch } from "@/pages/Dashboard/LeadSearch";
 import { Funnel } from "@/pages/Dashboard/Funnel";
@@ -12,7 +13,7 @@ import { Followups } from "@/pages/Dashboard/Followups";
 // Placeholder components for other pages are now replaced with real implementations
 
 const Index = () => {
-  const [currentPage, setCurrentPage] = useState("overview");
+  const { currentPage, navigateToPage } = useNavigation();
 
   const renderCurrentPage = () => {
     switch (currentPage) {
@@ -38,7 +39,7 @@ const Index = () => {
   };
 
   return (
-    <DashboardLayout currentPage={currentPage} onPageChange={setCurrentPage}>
+    <DashboardLayout currentPage={currentPage} onPageChange={navigateToPage}>
       {renderCurrentPage()}
     </DashboardLayout>
   );

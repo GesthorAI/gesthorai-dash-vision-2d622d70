@@ -97,7 +97,7 @@ export const AdvancedFilters = ({ onFiltersChange }: AdvancedFiltersProps) => {
     };
     setFilters(clearedFilters);
     clearBasicFilters();
-    onFiltersChange?.(clearedFilters);
+    onFiltersChange?.(null); // Clear all filters
   };
 
   const getActiveFiltersCount = () => {

@@ -8,8 +8,9 @@ import {
   CheckCircle, Circle, ArrowRight, Users, Phone, 
   Calendar, DollarSign, X, Clock, Target
 } from 'lucide-react';
-import { Lead } from '@/hooks/useLeads';
+import { Lead, updateLeadStatus } from '@/hooks/useLeads';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface StatusWorkflowProps {
   leads: Lead[];
@@ -23,7 +24,7 @@ const WORKFLOW_STAGES = [
     label: 'Novo Lead',
     description: 'Lead captado recentemente',
     icon: Users,
-    color: 'bg-blue-500',
+    color: 'bg-brand-primary text-white',
     nextStages: ['contatado', 'perdido']
   },
   {
@@ -31,7 +32,7 @@ const WORKFLOW_STAGES = [
     label: 'Contatado',
     description: 'Primeiro contato realizado',
     icon: Phone,
-    color: 'bg-yellow-500',
+    color: 'bg-warning text-warning-foreground',
     nextStages: ['qualificado', 'perdido']
   },
   {
@@ -39,7 +40,7 @@ const WORKFLOW_STAGES = [
     label: 'Qualificado',
     description: 'Lead demonstrou interesse',
     icon: Target,
-    color: 'bg-green-500',
+    color: 'bg-accent text-accent-foreground',
     nextStages: ['agendado', 'perdido']
   },
   {
@@ -47,7 +48,7 @@ const WORKFLOW_STAGES = [
     label: 'Agendado',
     description: 'Reunião ou apresentação agendada',
     icon: Calendar,
-    color: 'bg-purple-500',
+    color: 'bg-brand-accent text-brand-accent-foreground',
     nextStages: ['convertido', 'perdido']
   },
   {
@@ -55,7 +56,7 @@ const WORKFLOW_STAGES = [
     label: 'Convertido',
     description: 'Lead se tornou cliente',
     icon: DollarSign,
-    color: 'bg-emerald-600',
+    color: 'bg-success text-success-foreground',
     nextStages: []
   },
   {
@@ -63,13 +64,14 @@ const WORKFLOW_STAGES = [
     label: 'Perdido',
     description: 'Lead não demonstrou interesse',
     icon: X,
-    color: 'bg-red-500',
+    color: 'bg-destructive text-destructive-foreground',
     nextStages: ['novo'] // Pode ser reativado
   }
 ];
 
 export const StatusWorkflow = ({ leads, onStatusChange, className }: StatusWorkflowProps) => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const updateStatusMutation = updateLeadStatus();
 
   // Calculate metrics for each stage
   const stageMetrics = WORKFLOW_STAGES.map(stage => {
@@ -102,9 +104,20 @@ export const StatusWorkflow = ({ leads, onStatusChange, className }: StatusWorkf
     };
   });
 
-  const handleStatusChange = (leadId: string, newStatus: string) => {
-    onStatusChange?.(leadId, newStatus);
-    setSelectedLead(null);
+  const handleStatusChange = async (leadId: string, newStatus: string) => {
+    try {
+      await updateStatusMutation.mutateAsync({ id: leadId, status: newStatus });
+      
+      const stage = WORKFLOW_STAGES.find(s => s.id === newStatus);
+      toast.success(`Status atualizado para: ${stage?.label || newStatus}`);
+      
+      // Also call the optional callback
+      onStatusChange?.(leadId, newStatus);
+      setSelectedLead(null);
+    } catch (error) {
+      console.error('Error updating lead status:', error);
+      toast.error('Erro ao atualizar status do lead');
+    }
   };
 
   const getCurrentStage = (status: string) => {
@@ -133,9 +146,9 @@ export const StatusWorkflow = ({ leads, onStatusChange, className }: StatusWorkf
               <Card key={stage.id} className="p-4 cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => setSelectedLead(null)}>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className={`p-2 rounded-full ${stage.color.replace('bg-', 'bg-')}`}>
-                    <Icon className="h-4 w-4 text-white" />
-                  </div>
+                <div className={`p-2 rounded-full ${stage.color}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
                   <div>
                     <p className="font-medium text-sm">{stage.label}</p>
                     <p className="text-2xl font-bold">{stage.count}</p>
@@ -190,7 +203,7 @@ export const StatusWorkflow = ({ leads, onStatusChange, className }: StatusWorkf
             <Card key={stage.id} className="p-4">
               <div className="flex items-center gap-2 mb-4">
                 <div className={`p-2 rounded-full ${stage.color}`}>
-                  <stage.icon className="h-4 w-4 text-white" />
+                  <stage.icon className="h-4 w-4" />
                 </div>
                 <h4 className="font-semibold">{stage.label}</h4>
                 <Badge variant="secondary">{stage.count} leads</Badge>
@@ -272,8 +285,8 @@ export const StatusWorkflow = ({ leads, onStatusChange, className }: StatusWorkf
                   const Icon = currentStage?.icon || Circle;
                   return (
                     <>
-                      <div className={`p-2 rounded-full ${currentStage?.color || 'bg-gray-500'}`}>
-                        <Icon className="h-4 w-4 text-white" />
+                      <div className={`p-2 rounded-full ${currentStage?.color || 'bg-muted'}`}>
+                        <Icon className="h-4 w-4" />
                       </div>
                       <span>{currentStage?.label || selectedLead.status}</span>
                     </>

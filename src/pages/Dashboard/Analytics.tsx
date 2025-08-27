@@ -1,5 +1,6 @@
 import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useFilters } from "@/hooks/useFilters";
+import { useNavigation } from "@/hooks/useNavigation";
 import { FilterBar } from "@/components/Filters/FilterBar";
 import { AdvancedFilters } from "@/components/Filters/AdvancedFilters";
 import { AdvancedAnalytics } from "@/components/Analytics/AdvancedAnalytics";
@@ -7,7 +8,7 @@ import { StatusWorkflow } from "@/components/Workflow/StatusWorkflow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -19,7 +20,16 @@ export const Analytics = () => {
     status 
   } = useFilters();
   
-  const [advancedFilters, setAdvancedFilters] = useState<any>(null);
+  const { pendingFilters, clearPendingFilters } = useNavigation();
+  const [advancedFilters, setAdvancedFilters] = useState<any>(pendingFilters);
+
+  // Apply pending filters from notifications
+  useEffect(() => {
+    if (pendingFilters) {
+      setAdvancedFilters(pendingFilters);
+      clearPendingFilters();
+    }
+  }, [pendingFilters, clearPendingFilters]);
   
   // Combine basic and advanced filters
   const combinedFilters = {

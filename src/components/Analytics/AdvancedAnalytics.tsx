@@ -65,6 +65,23 @@ export const AdvancedAnalytics = ({ leads, className }: AdvancedAnalyticsProps) 
     { range: '0-2', count: scoredLeads.filter(l => l.score < 3).length, color: '#dc2626' }
   ];
 
+  // Source Distribution
+  const sources = [...new Set(scoredLeads.map(l => l.source).filter(Boolean))];
+  const sourceDistribution = sources.map(source => ({
+    name: source || 'Desconhecida',
+    value: scoredLeads.filter(l => l.source === source).length,
+    percentage: (scoredLeads.filter(l => l.source === source).length / scoredLeads.length) * 100
+  }));
+
+  const COLORS = [
+    'hsl(var(--primary))', 
+    'hsl(var(--accent))', 
+    'hsl(var(--success))', 
+    'hsl(var(--warning))', 
+    'hsl(var(--brand-primary))', 
+    'hsl(var(--brand-accent))'
+  ];
+
   // Status Distribution
   const statusDistribution = [
     { status: 'Novo', count: scoredLeads.filter(l => l.status === 'novo').length, color: '#3b82f6' },
@@ -248,46 +265,60 @@ export const AdvancedAnalytics = ({ leads, className }: AdvancedAnalyticsProps) 
 
         <TabsContent value="distribution" className="space-y-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Score Distribution */}
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Distribuição por Score</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={scoreDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={100}
-                    dataKey="count"
-                    nameKey="range"
-                  >
-                    {scoreDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </Card>
-
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Status dos Leads</h3>
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={statusDistribution}>
+              <h3 className="text-lg font-semibold mb-4">Distribuição de Score</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={scoreDistribution}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="status" />
+                  <XAxis dataKey="range" />
                   <YAxis />
                   <Tooltip />
-                  <Bar dataKey="count">
-                    {statusDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="count" fill="hsl(var(--primary))" />
                 </BarChart>
               </ResponsiveContainer>
             </Card>
+
+            {/* Source Distribution */}
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Leads por Origem</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={sourceDistribution}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percentage }) => `${name}: ${(percentage || 0).toFixed(1)}%`}
+                    outerRadius={80}
+                    fill="hsl(var(--accent))"
+                    dataKey="value"
+                  >
+                    {sourceDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </Card>
           </div>
+          
+          {/* Niche Performance */}
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Performance por Nicho</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={nicheData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="niche" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="count" fill="hsl(var(--accent))" name="Total de Leads" />
+                <Bar dataKey="converted" fill="hsl(var(--success))" name="Convertidos" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
         </TabsContent>
 
         <TabsContent value="geographic" className="space-y-4">

@@ -33,6 +33,19 @@ interface LeadFilters {
   status?: string;
   dateRange?: number;
   searchId?: string;
+  // Advanced filters
+  search?: string;
+  scoreMin?: number;
+  scoreMax?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  cities?: string[];
+  niches?: string[];
+  statuses?: string[];
+  sources?: string[];
+  hasPhone?: boolean;
+  hasEmail?: boolean;
+  hasWhatsapp?: boolean;
 }
 
 export const useLeads = (filters?: LeadFilters) => {
@@ -65,6 +78,67 @@ export const useLeads = (filters?: LeadFilters) => {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - filters.dateRange);
         query = query.gte("created_at", startDate.toISOString());
+      }
+      
+      // Advanced filters
+      if (filters?.search) {
+        query = query.or(`name.ilike.%${filters.search}%,business.ilike.%${filters.search}%,email.ilike.%${filters.search}%`);
+      }
+      
+      if (filters?.scoreMin !== undefined) {
+        query = query.gte("score", filters.scoreMin);
+      }
+      
+      if (filters?.scoreMax !== undefined) {
+        query = query.lte("score", filters.scoreMax);
+      }
+      
+      if (filters?.dateFrom) {
+        query = query.gte("created_at", filters.dateFrom);
+      }
+      
+      if (filters?.dateTo) {
+        query = query.lte("created_at", filters.dateTo);
+      }
+      
+      if (filters?.cities?.length) {
+        query = query.in("city", filters.cities);
+      }
+      
+      if (filters?.niches?.length) {
+        query = query.in("niche", filters.niches);
+      }
+      
+      if (filters?.statuses?.length) {
+        query = query.in("status", filters.statuses);
+      }
+      
+      if (filters?.sources?.length) {
+        query = query.in("source", filters.sources);
+      }
+      
+      if (filters?.hasPhone !== undefined) {
+        if (filters.hasPhone) {
+          query = query.not("phone", "is", null);
+        } else {
+          query = query.is("phone", null);
+        }
+      }
+      
+      if (filters?.hasEmail !== undefined) {
+        if (filters.hasEmail) {
+          query = query.not("email", "is", null);
+        } else {
+          query = query.is("email", null);
+        }
+      }
+      
+      if (filters?.hasWhatsapp !== undefined) {
+        if (filters.hasWhatsapp) {
+          query = query.eq("whatsapp_verified", true);
+        } else {
+          query = query.neq("whatsapp_verified", true);
+        }
       }
       
       const { data, error } = await query.order("created_at", { ascending: false });

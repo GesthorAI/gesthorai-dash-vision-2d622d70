@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useNavigation } from '@/hooks/useNavigation';
 import { toast } from 'sonner';
-import { Bell, Users, TrendingUp, CheckCircle } from 'lucide-react';
+import { Bell, Users, TrendingUp, CheckCircle, X, ExternalLink } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +21,7 @@ interface Notification {
 
 export const RealtimeNotifications = () => {
   const { user } = useAuth();
+  const { applyFiltersAndNavigate } = useNavigation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -137,6 +139,23 @@ export const RealtimeNotifications = () => {
     setUnreadCount(0);
   };
 
+  const handleNotificationAction = (notification: Notification) => {
+    markAsRead(notification.id);
+    
+    if (notification.type === 'new_leads' && notification.searchId) {
+      // Navigate to search results filtered by the specific search
+      applyFiltersAndNavigate('search', { searchId: notification.searchId });
+    } else if (notification.type === 'search_completed') {
+      // Navigate to analytics
+      applyFiltersAndNavigate('analytics', {});
+    } else if (notification.type === 'high_score_lead') {
+      // Navigate to quality page
+      applyFiltersAndNavigate('quality', { scoreMin: 8 });
+    }
+    
+    setIsOpen(false);
+  };
+
   const getIcon = (type: string) => {
     switch (type) {
       case 'new_leads':
@@ -202,25 +221,50 @@ export const RealtimeNotifications = () => {
                   }`}
                   onClick={() => markAsRead(notification.id)}
                 >
-                  <div className="flex items-start gap-3">
-                    {getIcon(notification.type)}
-                    <div className="flex-1 min-w-0">
-                      <p className={`font-medium text-sm ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {notification.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {notification.message}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(notification.timestamp).toLocaleTimeString('pt-BR', {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3 flex-1">
+                      {getIcon(notification.type)}
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-medium text-sm ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
+                          {notification.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {notification.message}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(notification.timestamp).toLocaleTimeString('pt-BR', {
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
                     </div>
-                    {!notification.read && (
-                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0" />
-                    )}
+                    <div className="flex items-center gap-1 ml-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNotificationAction(notification);
+                        }}
+                        title="Ver detalhes"
+                        className="h-6 w-6 p-0"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          markAsRead(notification.id);
+                        }}
+                        title="Marcar como lida"
+                        className="h-6 w-6 p-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ))
