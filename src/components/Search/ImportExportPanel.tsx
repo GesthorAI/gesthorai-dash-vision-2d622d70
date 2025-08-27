@@ -144,7 +144,7 @@ export const ImportExportPanel = () => {
           const score = scoredLeads[0]?.score || 5;
 
           // Create the lead
-          await createLead.mutateAsync({
+          const result = await createLead.mutateAsync({
             name: rowData.nome,
             business: rowData.empresa,
             city: rowData.cidade,
@@ -156,8 +156,12 @@ export const ImportExportPanel = () => {
             score
           });
 
-          existingLeads.add(leadKey);
-          results.success++;
+          if (result.isDuplicate) {
+            results.duplicates++;
+          } else {
+            existingLeads.add(leadKey);
+            results.success++;
+          }
 
         } catch (error) {
           results.errors.push({
@@ -177,7 +181,7 @@ export const ImportExportPanel = () => {
       
       toast({
         title: "Importação concluída",
-        description: `${results.success} leads importados com sucesso. ${results.errors.length} erros encontrados.`,
+        description: `${results.success} leads importados, ${results.duplicates} duplicados ignorados, ${results.errors.length} erros encontrados.`,
       });
 
     } catch (error) {

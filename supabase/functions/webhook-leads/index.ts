@@ -133,6 +133,9 @@ serve(async (req) => {
     console.log('Search updated successfully');
     
     // Insert leads if provided and status is concluida
+    let insertedCount = 0;
+    let duplicateCount = 0;
+    
     if (leads.length > 0 && status === 'concluida') {
       console.log(`Processing ${leads.length} leads for insertion`);
       
@@ -180,19 +183,54 @@ serve(async (req) => {
         console.log('Sample transformed lead:', JSON.stringify(leadsToInsert[0], null, 2));
         console.log(`Inserting ${leadsToInsert.length} transformed leads`);
         
-        const { error: leadsError } = await supabase
-          .from('leads')
-          .insert(leadsToInsert);
-          
-        if (leadsError) {
-          console.error('Error inserting leads:', leadsError);
-          return new Response(
-            JSON.stringify({ error: 'Failed to insert leads', details: leadsError }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+        // Insert leads with duplicate detection
+        for (const lead of leadsToInsert) {
+          try {
+            let insertResult;
+            
+            if (lead.phone && lead.phone.trim() !== '') {
+              // Try upsert by phone first (preferred)
+              insertResult = await supabase
+                .from('leads')
+                .upsert(lead, { 
+                  onConflict: 'user_id,normalized_phone',
+                  ignoreDuplicates: true 
+                })
+                .select();
+            } else if (lead.email && lead.email.trim() !== '') {
+              // Fallback to upsert by email
+              insertResult = await supabase
+                .from('leads')
+                .upsert(lead, { 
+                  onConflict: 'user_id,normalized_email',
+                  ignoreDuplicates: true 
+                })
+                .select();
+            } else {
+              // No phone or email - regular insert
+              insertResult = await supabase
+                .from('leads')
+                .insert(lead)
+                .select();
+            }
+
+            if (insertResult.error) {
+              console.error('Error processing lead:', insertResult.error);
+              continue;
+            }
+
+            if (insertResult.data && insertResult.data.length > 0) {
+              insertedCount++;
+            } else {
+              duplicateCount++;
+            }
+          } catch (error) {
+            console.error('Error processing lead:', error);
+            continue;
+          }
         }
-        
-        console.log(`Successfully inserted ${leadsToInsert.length} leads`);
+
+        console.log(`Processing complete: ${insertedCount} inserted, ${duplicateCount} duplicates ignored`);
       } else {
         console.log('No valid leads to insert');
       }
@@ -202,7 +240,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: `Search ${search_id} updated to ${status}`,
-        leads_inserted: status === 'concluida' ? leads.length : 0
+        leads_inserted: status === 'concluida' ? (insertedCount || 0) : 0,
+        duplicates_ignored: status === 'concluida' ? (duplicateCount || 0) : 0
       }),
       { 
         status: 200, 

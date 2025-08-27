@@ -24,6 +24,8 @@ export type Database = {
           id: string
           name: string
           niche: string | null
+          normalized_email: string | null
+          normalized_phone: string | null
           phone: string | null
           score: number | null
           search_id: string | null
@@ -45,6 +47,8 @@ export type Database = {
           id?: string
           name: string
           niche?: string | null
+          normalized_email?: string | null
+          normalized_phone?: string | null
           phone?: string | null
           score?: number | null
           search_id?: string | null
@@ -66,6 +70,8 @@ export type Database = {
           id?: string
           name?: string
           niche?: string | null
+          normalized_email?: string | null
+          normalized_phone?: string | null
           phone?: string | null
           score?: number | null
           search_id?: string | null

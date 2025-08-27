@@ -177,17 +177,44 @@ export const useCreateLead = () => {
     mutationFn: async (lead: Omit<Lead, "id" | "created_at" | "updated_at" | "user_id">) => {
       if (!user) throw new Error('User must be authenticated');
       
-      const { data, error } = await supabase
-        .from("leads")
-        .insert({
-          ...lead,
-          user_id: user.id,
-        })
-        .select()
-        .single();
+      const leadWithUserId = {
+        ...lead,
+        user_id: user.id,
+      };
+
+      let result;
       
-      if (error) throw error;
-      return data as Lead;
+      if (lead.phone && lead.phone.trim() !== '') {
+        // Try upsert by phone first (preferred)
+        result = await supabase
+          .from("leads")
+          .upsert(leadWithUserId, { 
+            onConflict: 'user_id,normalized_phone',
+            ignoreDuplicates: true 
+          })
+          .select()
+          .single();
+      } else if (lead.email && lead.email.trim() !== '') {
+        // Fallback to upsert by email
+        result = await supabase
+          .from("leads")
+          .upsert(leadWithUserId, { 
+            onConflict: 'user_id,normalized_email',
+            ignoreDuplicates: true 
+          })
+          .select()
+          .single();
+      } else {
+        // No phone or email - regular insert
+        result = await supabase
+          .from("leads")
+          .insert(leadWithUserId)
+          .select()
+          .single();
+      }
+      
+      if (result.error) throw result.error;
+      return { data: result.data, isDuplicate: !result.data };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
