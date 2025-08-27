@@ -12,6 +12,8 @@ import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useRecentSearches } from "@/hooks/useSearches";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useFilters } from "@/hooks/useFilters";
+import { useSelection } from "@/hooks/useSelection";
+import { useTemporaryFilters } from "@/hooks/useTemporaryFilters";
 import { 
   Clock, 
   AlertTriangle, 
@@ -86,8 +88,16 @@ const ActionCard = ({
 export const Operations = () => {
   const { data: allLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime();
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(50);
-  const { applyFiltersAndNavigate } = useNavigation();
-  const [selectedLeads, setSelectedLeads] = useState<any[]>([]);
+  const { clearSelection } = useSelection();
+  const { setFilters: setTempFilters, clearFilters: clearTempFilters } = useTemporaryFilters();
+
+  // Handle tab switching
+  const [activeTab, setActiveTab] = useState<string>("dashboard");
+
+  const handleActionCardClick = (tab: string, filters: any) => {
+    setTempFilters(filters.filters);
+    setActiveTab(tab);
+  };
 
   // Calculate operational metrics
   const now = new Date();
@@ -169,7 +179,7 @@ export const Operations = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="dashboard" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
           <TabsTrigger value="bulk-actions">Ações em Lote</TabsTrigger>
@@ -238,8 +248,7 @@ export const Operations = () => {
             count={newLeads.length}
             action="Contactar"
             icon={Phone}
-            onClick={() => applyFiltersAndNavigate('operations', { 
-              tab: 'bulk-actions',
+            onClick={() => handleActionCardClick('bulk-actions', { 
               filters: { dateRange: 1, status: 'novo' }
             })}
           />
@@ -250,8 +259,7 @@ export const Operations = () => {
             count={needsFollowUp.length}
             action="Fazer Follow-up"
             icon={MessageSquare}
-            onClick={() => applyFiltersAndNavigate('operations', { 
-              tab: 'bulk-actions',
+            onClick={() => handleActionCardClick('bulk-actions', { 
               filters: { score: { min: 5 }, dateRange: 7 }
             })}
           />
@@ -262,8 +270,7 @@ export const Operations = () => {
             count={highQualityLeads.length}
             action="Priorizar"
             icon={Target}
-            onClick={() => applyFiltersAndNavigate('operations', { 
-              tab: 'bulk-actions',
+            onClick={() => handleActionCardClick('bulk-actions', { 
               filters: { score: { min: 8 }, dateRange: 7 }
             })}
           />
@@ -274,8 +281,7 @@ export const Operations = () => {
             count={incompleteLeads.length}
             action="Completar"
             icon={Users}
-            onClick={() => applyFiltersAndNavigate('operations', { 
-              tab: 'bulk-actions',
+            onClick={() => handleActionCardClick('bulk-actions', { 
               filters: { score: { min: 6 }, hasEmail: false, hasPhone: false }
             })}
           />
@@ -383,7 +389,7 @@ export const Operations = () => {
         <TabsContent value="bulk-actions" className="space-y-6">
           <BulkActionsPanel 
             selectedLeads={[]} // Will use global selection
-            onClearSelection={() => {}}
+            onClearSelection={() => clearSelection()}
           />
         </TabsContent>
 
