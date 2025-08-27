@@ -14,14 +14,136 @@ export type Database = {
   }
   public: {
     Tables: {
+      communications: {
+        Row: {
+          channel: string
+          created_at: string
+          id: string
+          lead_id: string
+          message: string | null
+          metadata: Json | null
+          status: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          message?: string | null
+          metadata?: Json | null
+          status?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          message?: string | null
+          metadata?: Json | null
+          status?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      followup_run_items: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          lead_id: string
+          message: string | null
+          run_id: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lead_id: string
+          message?: string | null
+          run_id: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          lead_id?: string
+          message?: string | null
+          run_id?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      followup_runs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          failed_count: number | null
+          filters: Json
+          id: string
+          name: string
+          sent_count: number | null
+          started_at: string | null
+          status: string
+          template_id: string | null
+          total_leads: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          failed_count?: number | null
+          filters?: Json
+          id?: string
+          name: string
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          template_id?: string | null
+          total_leads?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          failed_count?: number | null
+          filters?: Json
+          id?: string
+          name?: string
+          sent_count?: number | null
+          started_at?: string | null
+          status?: string
+          template_id?: string | null
+          total_leads?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       leads: {
         Row: {
           business: string
           city: string
           collected_at: string | null
+          contact_opt_out: boolean | null
           created_at: string
           email: string | null
           id: string
+          last_contacted_at: string | null
           name: string
           niche: string | null
           normalized_email: string | null
@@ -42,9 +164,11 @@ export type Database = {
           business: string
           city: string
           collected_at?: string | null
+          contact_opt_out?: boolean | null
           created_at?: string
           email?: string | null
           id?: string
+          last_contacted_at?: string | null
           name: string
           niche?: string | null
           normalized_email?: string | null
@@ -65,9 +189,11 @@ export type Database = {
           business?: string
           city?: string
           collected_at?: string | null
+          contact_opt_out?: boolean | null
           created_at?: string
           email?: string | null
           id?: string
+          last_contacted_at?: string | null
           name?: string
           niche?: string | null
           normalized_email?: string | null
@@ -100,6 +226,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      message_templates: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          message: string
+          name: string
+          subject: string | null
+          updated_at: string
+          user_id: string
+          variables: string[] | null
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          message: string
+          name: string
+          subject?: string | null
+          updated_at?: string
+          user_id: string
+          variables?: string[] | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          message?: string
+          name?: string
+          subject?: string | null
+          updated_at?: string
+          user_id?: string
+          variables?: string[] | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
