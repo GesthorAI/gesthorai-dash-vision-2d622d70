@@ -138,19 +138,20 @@ serve(async (req) => {
       
       // Filter and transform leads data to match database schema
       const validLeads = leads.filter(lead => {
-        // Only include leads that have either whatsapp data or basic business info
-        return lead.whatsapp_verified || lead.name || lead.business;
+        // Only include leads that have real business information
+        // Skip leads that are just WhatsApp verification objects without business data
+        return lead.name && lead.name.trim() !== '' && !lead.jid;
       });
       
       console.log(`Found ${validLeads.length} valid leads out of ${leads.length} total leads`);
       
       if (validLeads.length > 0) {
-        // Transform leads data with proper field mapping
-        const leadsToInsert = validLeads.map((lead, index) => {
+        // Transform leads data with proper field mapping - using real data only
+        const leadsToInsert = validLeads.map((lead) => {
           const transformedLead = {
-            // Required fields with fallbacks
-            name: lead.name || `Lead ${index + 1}`,
-            business: lead.business || lead.name || `Business ${index + 1}`,
+            // Required fields - using actual data from n8n
+            name: lead.name!,  // We already validated this exists
+            business: lead.business || lead.name!,  // Use business name or fallback to name
             city: lead.city || searchData.city,
             
             // Optional basic fields
@@ -158,7 +159,7 @@ serve(async (req) => {
             email: lead.email || null,
             source: lead.source || 'webhook',
             niche: lead.niche || searchData.niche,
-            score: lead.score || Math.floor(Math.random() * 10) + 1,
+            score: lead.score || 1,  // Default to 1 instead of random
             status: 'novo',
             
             // WhatsApp specific fields - proper mapping
