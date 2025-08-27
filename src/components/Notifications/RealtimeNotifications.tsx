@@ -62,9 +62,19 @@ export const RealtimeNotifications = () => {
           toast.success(notification.title, {
             description: notification.message,
             action: {
-              label: "Ver Lead",
+              label: "Ver em Ações em Lote",
               onClick: () => {
-                // Navigate to lead details
+                if (lead.score >= 8) {
+                  applyFiltersAndNavigate('operations', { 
+                    scoreMin: 8,
+                    filterType: 'high_score'
+                  });
+                } else {
+                  applyFiltersAndNavigate('operations', { 
+                    dateRange: 1,
+                    filterType: 'recent_leads'
+                  });
+                }
               }
             }
           });
@@ -104,9 +114,12 @@ export const RealtimeNotifications = () => {
             toast.success(notification.title, {
               description: notification.message,
               action: {
-                label: "Ver Leads",
+                label: "Ir para Ações em Lote",
                 onClick: () => {
-                  // Navigate to leads with search filter
+                  applyFiltersAndNavigate('operations', { 
+                    searchId: search.id,
+                    filterType: 'search_results'
+                  });
                 }
               }
             });
@@ -142,15 +155,24 @@ export const RealtimeNotifications = () => {
   const handleNotificationAction = (notification: Notification) => {
     markAsRead(notification.id);
     
-    if (notification.type === 'new_leads' && notification.searchId) {
-      // Navigate to search results filtered by the specific search
-      applyFiltersAndNavigate('search', { searchId: notification.searchId });
-    } else if (notification.type === 'search_completed') {
-      // Navigate to analytics
-      applyFiltersAndNavigate('analytics', {});
+    if (notification.type === 'search_completed' && notification.searchId) {
+      // Navigate to Operations with filter for the specific search
+      applyFiltersAndNavigate('operations', { 
+        searchId: notification.searchId,
+        filterType: 'search_results'
+      });
     } else if (notification.type === 'high_score_lead') {
-      // Navigate to quality page
-      applyFiltersAndNavigate('quality', { scoreMin: 8 });
+      // Navigate to Operations with high score filter
+      applyFiltersAndNavigate('operations', { 
+        scoreMin: 8,
+        filterType: 'high_score'
+      });
+    } else if (notification.type === 'new_leads') {
+      // Navigate to Operations with recent leads filter
+      applyFiltersAndNavigate('operations', { 
+        dateRange: 1, // Last 24 hours
+        filterType: 'recent_leads'
+      });
     }
     
     setIsOpen(false);

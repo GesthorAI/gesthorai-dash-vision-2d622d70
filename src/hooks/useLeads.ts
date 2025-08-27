@@ -42,16 +42,22 @@ export interface LeadFilters {
   includeArchived?: boolean;
   assignedTo?: string;
   searchId?: string;
-  // Legacy advanced filters
+  // New enhanced filters
   scoreMin?: number;
   scoreMax?: number;
-  dateFrom?: string;
-  dateTo?: string;
+  fromDate?: string;
+  toDate?: string;
+  searchTerm?: string;
+  hasWhatsapp?: boolean;
+  whatsappVerified?: boolean | null;
+  archived?: boolean | null;
+  sources?: string[];
+  // Legacy support
   cities?: string[];
   niches?: string[];
   statuses?: string[];
-  sources?: string[];
-  hasWhatsapp?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export const useLeads = (filters?: LeadFilters) => {
@@ -64,12 +70,48 @@ export const useLeads = (filters?: LeadFilters) => {
 
       let query = supabase
         .from('leads')
-        .select('*')
+        .select(`
+          *,
+          team_members:assigned_to(id, name, email, role)
+        `)
         .eq('user_id', user.id);
 
-      // By default, exclude archived leads unless explicitly requested
-      if (!filters?.includeArchived) {
+      // Handle archived filter
+      if (filters?.archived !== null && filters?.archived !== undefined) {
+        if (filters.archived) {
+          query = query.not('archived_at', 'is', null);
+        } else {
+          query = query.is('archived_at', null);
+        }
+      } else if (!filters?.includeArchived) {
+        // By default, exclude archived leads unless explicitly requested
         query = query.is('archived_at', null);
+      }
+
+      // New enhanced filters
+      if (filters?.searchTerm) {
+        const term = `%${filters.searchTerm}%`;
+        query = query.or(`name.ilike.${term},business.ilike.${term},phone.ilike.${term},email.ilike.${term}`);
+      }
+
+      if (filters?.fromDate) {
+        query = query.gte('created_at', filters.fromDate);
+      }
+
+      if (filters?.toDate) {
+        query = query.lte('created_at', filters.toDate);
+      }
+
+      if (filters?.whatsappVerified !== null && filters?.whatsappVerified !== undefined) {
+        query = query.eq('whatsapp_verified', filters.whatsappVerified);
+      }
+
+      if (filters?.assignedTo) {
+        if (filters.assignedTo === 'unassigned') {
+          query = query.is('assigned_to', null);
+        } else {
+          query = query.eq('assigned_to', filters.assignedTo);
+        }
       }
 
       // Apply filters

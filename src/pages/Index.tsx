@@ -5,7 +5,7 @@ import { Overview } from "@/pages/Dashboard/Overview";
 import { LeadSearch } from "@/pages/Dashboard/LeadSearch";
 import { Funnel } from "@/pages/Dashboard/Funnel";
 import { Quality } from "@/pages/Dashboard/Quality";
-import { Operations } from "@/pages/Dashboard/Operations";
+import Operations from "@/pages/Dashboard/Operations";
 import { Analytics } from "@/pages/Dashboard/Analytics";
 import { Tasks } from "@/pages/Dashboard/Tasks";
 import { Followups } from "@/pages/Dashboard/Followups";

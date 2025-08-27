@@ -1,183 +1,228 @@
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BulkActionsPanel } from "@/components/Operations/BulkActionsPanel";
-import { LeadsTableWithData } from "@/components/Operations/LeadsTableWithData";
-import { WorkflowAutomation } from "@/components/Operations/WorkflowAutomation";
 import { LeadAssignment } from "@/components/Operations/LeadAssignment";
+import { WorkflowAutomation } from "@/components/Operations/WorkflowAutomation";
 import { FollowupWizard } from "@/components/Followups/FollowupWizard";
+import { AdvancedFilters } from "@/components/Filters/AdvancedFilters";
+import { LeadsTableWithData } from "@/components/Operations/LeadsTableWithData";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useLeads } from "@/hooks/useLeads";
-import { useTemporaryFilters } from "@/hooks/useTemporaryFilters";
+import { useLeadsWithRealtime } from "@/hooks/useLeads";
+import { useFilters } from "@/hooks/useFilters";
 import { useNavigation } from "@/hooks/useNavigation";
-import { 
-  Users, 
-  Clock,
-  TrendingUp,
-  Target,
-  Filter,
-  X,
-  Settings,
-  Zap,
-  UserPlus,
-  MessageSquare,
-  Send
-} from "lucide-react";
+import { useSelection } from "@/hooks/useSelection";
+import { PlayCircle, Users, Settings, MessageSquare, Filter, X } from "lucide-react";
 
-export const Operations = () => {
-  const [activeTab, setActiveTab] = useState("acoes-lote");
+const Operations = () => {
+  const [activeTab, setActiveTab] = useState("bulk");
   const [showFollowupWizard, setShowFollowupWizard] = useState(false);
-  const { filters: temporaryFilters, clearFilters: clearTemporaryFilters } = useTemporaryFilters();
-  
-  const { data: leads = [] } = useLeads(temporaryFilters);
+  const globalFilters = useFilters();
+  const { pendingFilters, clearPendingFilters } = useNavigation();
+  const { selectedLeads, clearSelection } = useSelection();
 
-  const hasTemporaryFilters = temporaryFilters && Object.keys(temporaryFilters).length > 0;
+  // Apply pending filters from navigation
+  useEffect(() => {
+    if (pendingFilters) {
+      const { filterType, ...filters } = pendingFilters;
+      
+      if (filterType === 'high_score' && filters.scoreMin) {
+        globalFilters.setScoreRange([filters.scoreMin, 10]);
+      } else if (filterType === 'recent_leads' && filters.dateRange) {
+        globalFilters.setDateRange(filters.dateRange);
+      } else if (filterType === 'search_results' && filters.searchId) {
+        // Handle search filter - could be implemented with a special search filter
+        console.log('Filtering by search:', filters.searchId);
+      }
+      
+      clearPendingFilters();
+      setActiveTab("bulk");
+    }
+  }, [pendingFilters, globalFilters, clearPendingFilters]);
 
-  const handleActionCardClick = (filters: any) => {
-    // Apply filters and switch to bulk actions tab
-    // This will be implemented with the temporary filters hook
-    setActiveTab("acoes-lote");
+  // Build final filters for leads query
+  const finalFilters = {
+    status: globalFilters.status,
+    niche: globalFilters.selectedNiche,
+    city: globalFilters.selectedCity,
+    scoreMin: globalFilters.scoreRange?.[0],
+    scoreMax: globalFilters.scoreRange?.[1],
+    searchTerm: globalFilters.searchTerm,
+    hasPhone: globalFilters.hasPhone,
+    hasEmail: globalFilters.hasEmail,
+    whatsappVerified: globalFilters.whatsappVerified,
+    archived: globalFilters.archived,
+    assignedTo: globalFilters.assignedTo,
+    sources: globalFilters.sources,
+    fromDate: globalFilters.customDateRange?.from?.toISOString(),
+    toDate: globalFilters.customDateRange?.to?.toISOString(),
   };
+
+  const { data: leads = [], isLoading, refetch } = useLeadsWithRealtime(finalFilters);
+
+  const handleActionCardClick = (action: string) => {
+    switch (action) {
+      case "initial_contact":
+        globalFilters.setStatus("novo");
+        break;
+      case "followup":
+        globalFilters.setStatus("contatado");
+        break;
+      case "prioritize":
+        globalFilters.setScoreRange([7, 10]);
+        break;
+    }
+  };
+
+  const getActiveFiltersCount = () => globalFilters.getActiveFiltersCount();
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Operacional</h1>
-        <p className="text-muted-foreground">
-          Centro de operações para gestão eficiente de leads e automação
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Operações</h1>
+          <p className="text-muted-foreground">
+            Gerencie leads em lote, configure automações e gerencie sua equipe
+          </p>
+        </div>
+        <Button onClick={() => setShowFollowupWizard(true)} className="gap-2">
+          <MessageSquare className="h-4 w-4" />
+          Novo Follow-up
+        </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      {/* Global Filters */}
+      <AdvancedFilters onFiltersChange={() => refetch()} />
+
+      {/* Show active filters summary */}
+      {getActiveFiltersCount() > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4" />
+              <span className="font-medium">Filtros Ativos:</span>
+              <Badge variant="secondary">
+                {getActiveFiltersCount()} filtro(s) aplicado(s)
+              </Badge>
+              <Badge variant="outline">
+                {leads.length} lead(s) encontrado(s)
+              </Badge>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => globalFilters.clearFilters()}>
+              <X className="h-3 w-3 mr-1" />
+              Limpar Filtros
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="acoes-lote">Ações em Lote</TabsTrigger>
-          <TabsTrigger value="automacao">Automação</TabsTrigger>
-          <TabsTrigger value="equipe">Equipe</TabsTrigger>
-          <TabsTrigger value="configuracoes">Configurações</TabsTrigger>
+          <TabsTrigger value="bulk" className="gap-2">
+            <PlayCircle className="h-4 w-4" />
+            Ações em Lote
+          </TabsTrigger>
+          <TabsTrigger value="automation" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Automação
+          </TabsTrigger>
+          <TabsTrigger value="team" className="gap-2">
+            <Users className="h-4 w-4" />
+            Equipe
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Configurações
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="acoes-lote" className="space-y-6">
-          <Card>
-            <CardHeader>
+        <TabsContent value="bulk" className="space-y-6">
+          {/* Priority Actions */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" 
+                  onClick={() => handleActionCardClick("initial_contact")}>
+              <h3 className="font-semibold text-blue-600">Contato Inicial</h3>
+              <p className="text-sm text-muted-foreground">Leads novos aguardando primeiro contato</p>
+              <div className="mt-2 text-lg font-bold">
+                {leads.filter(l => l.status === 'novo').length}
+              </div>
+            </Card>
+            
+            <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" 
+                  onClick={() => handleActionCardClick("followup")}>
+              <h3 className="font-semibold text-yellow-600">Follow-up</h3>
+              <p className="text-sm text-muted-foreground">Leads contatados precisando de follow-up</p>
+              <div className="mt-2 text-lg font-bold">
+                {leads.filter(l => l.status === 'contatado').length}
+              </div>
+            </Card>
+            
+            <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" 
+                  onClick={() => handleActionCardClick("prioritize")}>
+              <h3 className="font-semibold text-green-600">Priorizar</h3>
+              <p className="text-sm text-muted-foreground">Leads com score alto (7+)</p>
+              <div className="mt-2 text-lg font-bold">
+                {leads.filter(l => l.score >= 7).length}
+              </div>
+            </Card>
+          </div>
+
+          {/* Selection Summary */}
+          {selectedLeads.length > 0 && (
+            <Card className="p-4 border-blue-200 bg-blue-50">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-lg">Ações Prioritárias</CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowFollowupWizard(true)}
-                    className="gap-2"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    Criar Follow-up
-                  </Button>
-                  {hasTemporaryFilters && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={clearTemporaryFilters}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-4 w-4 mr-1" />
-                      Limpar Filtros
-                    </Button>
-                  )}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{selectedLeads.length} lead(s) selecionado(s)</span>
                 </div>
+                <Button variant="outline" size="sm" onClick={clearSelection}>
+                  <X className="h-3 w-3 mr-1" />
+                  Limpar Seleção
+                </Button>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleActionCardClick({ status: 'novo', dateRange: 1 })}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className="h-4 w-4 text-primary" />
-                      <h3 className="font-medium">Contato Inicial</h3>
-                    </div>
-                    <Badge variant="destructive">Alta</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">Leads novos nas últimas 24h</p>
-                  <div className="text-2xl font-bold">{leads.filter(l => l.status === 'novo').length}</div>
-                </Card>
+            </Card>
+          )}
 
-                <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleActionCardClick({ scoreMin: 5, dateRange: 7 })}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4 text-primary" />
-                      <h3 className="font-medium">Follow-up</h3>
-                    </div>
-                    <Badge variant="destructive">Alta</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">Leads qualificados sem contato</p>
-                  <div className="text-2xl font-bold">{leads.filter(l => (l.score || 0) >= 5).length}</div>
-                </Card>
-
-                <Card className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => handleActionCardClick({ scoreMin: 8, dateRange: 7 })}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Target className="h-4 w-4 text-primary" />
-                      <h3 className="font-medium">Priorizar</h3>
-                    </div>
-                    <Badge variant="secondary">Média</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">Leads de alta qualidade</p>
-                  <div className="text-2xl font-bold">{leads.filter(l => (l.score || 0) >= 8).length}</div>
-                </Card>
-              </div>
-
-              {hasTemporaryFilters && (
-                <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <Filter className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Filtros aplicados:</span>
-                    {Object.entries(temporaryFilters).map(([key, value]) => (
-                      <Badge key={key} variant="outline" className="text-xs">
-                        {key}: {String(value)}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
+          {/* Leads Table */}
           <LeadsTableWithData />
+
+          {/* Bulk Actions */}
           <BulkActionsPanel 
-            selectedLeads={[]}
-            onClearSelection={() => {}}
+            selectedLeads={selectedLeads} 
+            onClearSelection={clearSelection}
           />
         </TabsContent>
 
-        <TabsContent value="automacao" className="space-y-6">
+        <TabsContent value="automation">
           <WorkflowAutomation />
         </TabsContent>
 
-        <TabsContent value="equipe" className="space-y-6">
+        <TabsContent value="team">
           <LeadAssignment />
         </TabsContent>
 
-        <TabsContent value="configuracoes" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Configurações Operacionais
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Configurações avançadas em desenvolvimento...</p>
-            </CardContent>
+        <TabsContent value="settings">
+          <Card className="p-6">
+            <h3 className="text-lg font-semibold mb-4">Configurações Operacionais</h3>
+            <p className="text-muted-foreground">
+              Configurações avançadas de operação em desenvolvimento...
+            </p>
           </Card>
         </TabsContent>
       </Tabs>
 
       {/* Follow-up Wizard Dialog */}
       <Dialog open={showFollowupWizard} onOpenChange={setShowFollowupWizard}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Criar Follow-up</DialogTitle>
+          </DialogHeader>
           <FollowupWizard onClose={() => setShowFollowupWizard(false)} />
         </DialogContent>
       </Dialog>
     </div>
   );
 };
+
+export default Operations;

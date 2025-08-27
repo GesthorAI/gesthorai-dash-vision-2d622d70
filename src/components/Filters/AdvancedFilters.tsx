@@ -14,6 +14,7 @@ import { CalendarIcon, Filter, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { format, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useFilters } from '@/hooks/useFilters';
+import { useTeamMembers } from '@/hooks/useTeam';
 
 interface AdvancedFiltersProps {
   onFiltersChange?: (filters: any) => void;
@@ -31,6 +32,8 @@ interface AdvancedFilterState {
   hasEmail: boolean | null;
   whatsappVerified: boolean | null;
   contactedStatus: string | null;
+  archived: boolean | null;
+  assignedTo: string | null;
 }
 
 const nicheOptions = [
@@ -59,61 +62,68 @@ const sourceOptions = [
 ];
 
 export const AdvancedFilters = ({ onFiltersChange }: AdvancedFiltersProps) => {
-  const { clearFilters: clearBasicFilters } = useFilters();
+  const globalFilters = useFilters();
+  const { data: teamMembers } = useTeamMembers();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [filters, setFilters] = useState<AdvancedFilterState>({
-    searchTerm: '',
-    scoreRange: [0, 10],
-    dateRange: {},
-    cities: [],
-    niches: [],
-    status: [],
-    sources: [],
-    hasPhone: null,
-    hasEmail: null,
-    whatsappVerified: null,
-    contactedStatus: null
-  });
+  
+  // Use global filters state directly
+  const filters = {
+    searchTerm: globalFilters.searchTerm || '',
+    scoreRange: globalFilters.scoreRange || [0, 10],
+    dateRange: globalFilters.customDateRange || {},
+    cities: globalFilters.selectedCity ? [globalFilters.selectedCity] : [],
+    niches: globalFilters.selectedNiche ? [globalFilters.selectedNiche] : [],
+    status: globalFilters.status ? [globalFilters.status] : [],
+    sources: globalFilters.sources || [],
+    hasPhone: globalFilters.hasPhone,
+    hasEmail: globalFilters.hasEmail,
+    whatsappVerified: globalFilters.whatsappVerified,
+    contactedStatus: null,
+    archived: globalFilters.archived,
+    assignedTo: globalFilters.assignedTo
+  };
 
   const updateFilters = (newFilters: Partial<AdvancedFilterState>) => {
-    const updated = { ...filters, ...newFilters };
-    setFilters(updated);
-    onFiltersChange?.(updated);
+    // Update global filters
+    if ('searchTerm' in newFilters) globalFilters.setSearchTerm(newFilters.searchTerm);
+    if ('scoreRange' in newFilters) globalFilters.setScoreRange(newFilters.scoreRange);
+    if ('dateRange' in newFilters) globalFilters.setCustomDateRange(newFilters.dateRange);
+    if ('hasPhone' in newFilters) globalFilters.setHasPhone(newFilters.hasPhone);
+    if ('hasEmail' in newFilters) globalFilters.setHasEmail(newFilters.hasEmail);
+    if ('whatsappVerified' in newFilters) globalFilters.setWhatsappVerified(newFilters.whatsappVerified);
+    if ('sources' in newFilters) globalFilters.setSources(newFilters.sources);
+    if ('archived' in newFilters) globalFilters.setArchived(newFilters.archived as boolean | null);
+    if ('assignedTo' in newFilters) globalFilters.setAssignedTo(newFilters.assignedTo as string | null);
+    
+    // Handle arrays differently
+    if ('cities' in newFilters && newFilters.cities?.length) {
+      globalFilters.setCity(newFilters.cities[0]);
+    } else if ('cities' in newFilters && !newFilters.cities?.length) {
+      globalFilters.setCity(undefined);
+    }
+    
+    if ('niches' in newFilters && newFilters.niches?.length) {
+      globalFilters.setNiche(newFilters.niches[0]);
+    } else if ('niches' in newFilters && !newFilters.niches?.length) {
+      globalFilters.setNiche(undefined);
+    }
+    
+    if ('status' in newFilters && newFilters.status?.length) {
+      globalFilters.setStatus(newFilters.status[0]);
+    } else if ('status' in newFilters && !newFilters.status?.length) {
+      globalFilters.setStatus(undefined);
+    }
+    
+    onFiltersChange?.(globalFilters);
   };
 
   const clearAllFilters = () => {
-    const clearedFilters: AdvancedFilterState = {
-      searchTerm: '',
-      scoreRange: [0, 10],
-      dateRange: {},
-      cities: [],
-      niches: [],
-      status: [],
-      sources: [],
-      hasPhone: null,
-      hasEmail: null,
-      whatsappVerified: null,
-      contactedStatus: null
-    };
-    setFilters(clearedFilters);
-    clearBasicFilters();
-    onFiltersChange?.(null); // Clear all filters
+    globalFilters.clearFilters();
+    onFiltersChange?.(globalFilters);
   };
 
   const getActiveFiltersCount = () => {
-    let count = 0;
-    if (filters.searchTerm) count++;
-    if (filters.scoreRange[0] > 0 || filters.scoreRange[1] < 10) count++;
-    if (filters.dateRange.from || filters.dateRange.to) count++;
-    if (filters.cities.length > 0) count++;
-    if (filters.niches.length > 0) count++;
-    if (filters.status.length > 0) count++;
-    if (filters.sources.length > 0) count++;
-    if (filters.hasPhone !== null) count++;
-    if (filters.hasEmail !== null) count++;
-    if (filters.whatsappVerified !== null) count++;
-    if (filters.contactedStatus !== null) count++;
-    return count;
+    return globalFilters.getActiveFiltersCount();
   };
 
   const toggleArrayFilter = (array: string[], value: string, key: keyof AdvancedFilterState) => {
@@ -304,10 +314,10 @@ export const AdvancedFilters = ({ onFiltersChange }: AdvancedFiltersProps) => {
               </div>
             </div>
 
-            {/* Contact Information Filters */}
+            {/* Contact Information and Assignment Filters */}
             <div>
-              <Label>Informações de Contato</Label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
+              <Label>Informações de Contato e Atribuição</Label>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
                 <Select 
                   value={filters.hasPhone === null ? "all" : filters.hasPhone ? "yes" : "no"}
                   onValueChange={(value) => 
@@ -361,7 +371,53 @@ export const AdvancedFilters = ({ onFiltersChange }: AdvancedFiltersProps) => {
                     <SelectItem value="no">Não verificado</SelectItem>
                   </SelectContent>
                 </Select>
+
+                <Select 
+                  value={filters.archived === null ? "all" : filters.archived ? "yes" : "no"}
+                  onValueChange={(value) => 
+                    updateFilters({ 
+                      archived: value === "all" ? null : value === "yes" 
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status de arquivo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="no">Ativos</SelectItem>
+                    <SelectItem value="yes">Arquivados</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {/* Team Member Assignment */}
+              {teamMembers && teamMembers.length > 0 && (
+                <div className="mt-4">
+                  <Label>Atribuído para</Label>
+                  <Select 
+                    value={filters.assignedTo || "all"}
+                    onValueChange={(value) => 
+                      updateFilters({ 
+                        assignedTo: value === "all" ? null : value 
+                      })
+                    }
+                  >
+                    <SelectTrigger className="mt-2">
+                      <SelectValue placeholder="Selecione um membro da equipe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="unassigned">Não atribuídos</SelectItem>
+                      {teamMembers.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.name} - {member.role}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </>
         )}
