@@ -123,25 +123,14 @@ export const ImportExportPanel = () => {
             continue;
           }
 
-          // Calculate score for the lead
-          const mockLead = [{
-            id: "temp",
-            name: rowData.nome,
-            business: rowData.empresa,
-            city: rowData.cidade,
-            phone: rowData.telefone || null,
-            email: rowData.email || null,
-            niche: rowData.nicho || null,
-            source: rowData.origem || "import",
-            status: "novo",
-            score: 0,
-            user_id: "mock-user-id", // Temporary for scoring
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }];
-
-          const { scoredLeads } = useLeadScoring(mockLead);
-          const score = scoredLeads[0]?.score || 5;
+          // Calculate score for the lead (simple scoring)
+          let score = 0;
+          if (rowData.telefone && rowData.email) score += 3;
+          else if (rowData.telefone || rowData.email) score += 2;
+          if (rowData.nicho) score += 2;
+          if (rowData.cidade) score += 2;
+          if (rowData.empresa) score += 3;
+          score = Math.min(score, 10) || 5;
 
           // Create the lead
           const result = await createLead.mutateAsync({

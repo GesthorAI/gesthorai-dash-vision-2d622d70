@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,15 +44,32 @@ export const LeadCaptureForm = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewScore, setPreviewScore] = useState<number | null>(null);
+  const [customNiche, setCustomNiche] = useState("");
+  const [isCustomNiche, setIsCustomNiche] = useState(false);
 
   const { toast } = useToast();
   const createLead = useCreateLead();
 
-  const niches = [
+  const baseNiches = [
     "Restaurantes", "Academias", "Salões de Beleza", "Clínicas Médicas",
     "Escritórios de Advocacia", "Consultórios Odontológicos", "Pet Shops",
     "Lojas de Roupas", "Farmácias", "Oficinas Mecânicas", "Imobiliárias"
   ];
+  
+  // Get stored custom niches from localStorage and merge with base niches
+  const niches = useMemo(() => {
+    const stored = localStorage.getItem('customNiches');
+    const customNiches = stored ? JSON.parse(stored) : [];
+    return [...baseNiches, ...customNiches];
+  }, []);
+
+  // Format phone number as user types
+  const formatPhoneNumber = (value: string) => {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  };
 
   const sources = [
     { value: "manual", label: "Cadastro Manual" },
@@ -64,35 +81,57 @@ export const LeadCaptureForm = () => {
     { value: "email_campaign", label: "Campanha de Email" }
   ];
 
-  // Calculate preview score when data changes
-  const calculatePreviewScore = () => {
-    const mockLead = [{
-      id: "preview",
-      name: leadData.name,
-      business: leadData.business,
-      city: leadData.city,
-      phone: leadData.phone,
-      email: leadData.email,
-      niche: leadData.niche,
-      source: leadData.source,
-      status: "novo",
-      score: 0,
-      user_id: "mock-user-id", // Temporary for scoring
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }];
-
-    const { scoredLeads } = useLeadScoring(mockLead);
-    return scoredLeads[0]?.score || 0;
-  };
+  // Calculate preview score using useMemo
+  const calculatedScore = useMemo(() => {
+    if (!leadData.name || !leadData.business || !leadData.city) return 0;
+    
+    // Simple scoring logic
+    let score = 0;
+    if (leadData.phone && leadData.email) score += 3;
+    else if (leadData.phone || leadData.email) score += 2;
+    if (leadData.niche) score += 2;
+    if (leadData.city) score += 2;
+    if (leadData.business) score += 3;
+    
+    return Math.min(score, 10);
+  }, [leadData]);
 
   const handleInputChange = (field: keyof LeadData, value: string) => {
+    if (field === 'phone') {
+      value = formatPhoneNumber(value);
+    }
     setLeadData(prev => ({ ...prev, [field]: value }));
     
-    // Update preview score if we have enough data
+    // Update preview score
     if (leadData.name && leadData.business && leadData.city) {
-      const score = calculatePreviewScore();
-      setPreviewScore(score);
+      setPreviewScore(calculatedScore);
+    }
+  };
+
+  const handleNicheChange = (value: string) => {
+    if (value === "custom") {
+      setIsCustomNiche(true);
+      setCustomNiche("");
+    } else {
+      setIsCustomNiche(false);
+      setCustomNiche("");
+      handleInputChange('niche', value);
+    }
+  };
+
+  const handleCustomNicheSubmit = () => {
+    if (customNiche.trim()) {
+      // Save to localStorage
+      const stored = localStorage.getItem('customNiches');
+      const existingNiches = stored ? JSON.parse(stored) : [];
+      if (!existingNiches.includes(customNiche.trim())) {
+        const newNiches = [...existingNiches, customNiche.trim()];
+        localStorage.setItem('customNiches', JSON.stringify(newNiches));
+      }
+      
+      handleInputChange('niche', customNiche.trim());
+      setIsCustomNiche(false);
+      setCustomNiche("");
     }
   };
 
@@ -129,8 +168,6 @@ export const LeadCaptureForm = () => {
     setIsSubmitting(true);
 
     try {
-      const score = calculatePreviewScore();
-      
       await createLead.mutateAsync({
         name: leadData.name,
         business: leadData.business,
@@ -140,12 +177,12 @@ export const LeadCaptureForm = () => {
         niche: leadData.niche || undefined,
         source: leadData.source,
         status: "novo",
-        score
+        score: calculatedScore
       });
 
       toast({
         title: "Lead cadastrado com sucesso!",
-        description: `${leadData.name} foi adicionado com score ${score}/10`,
+        description: `${leadData.name} foi adicionado com score ${calculatedScore}/10`,
       });
 
       // Reset form
@@ -243,16 +280,43 @@ export const LeadCaptureForm = () => {
 
           <div className="space-y-2">
             <Label htmlFor="niche">Nicho</Label>
-            <Select value={leadData.niche} onValueChange={(value) => handleInputChange('niche', value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Selecione um nicho" />
-              </SelectTrigger>
-              <SelectContent>
-                {niches.map((niche) => (
-                  <SelectItem key={niche} value={niche}>{niche}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {isCustomNiche ? (
+              <div className="flex gap-2">
+                <Input
+                  value={customNiche}
+                  onChange={(e) => setCustomNiche(e.target.value)}
+                  placeholder="Digite o nicho personalizado"
+                  onKeyDown={(e) => e.key === 'Enter' && handleCustomNicheSubmit()}
+                />
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleCustomNicheSubmit}
+                  disabled={!customNiche.trim()}
+                >
+                  OK
+                </Button>
+                <Button 
+                  type="button" 
+                  variant="ghost" 
+                  onClick={() => {setIsCustomNiche(false); setCustomNiche("");}}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <Select value={leadData.niche} onValueChange={handleNicheChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione um nicho" />
+                </SelectTrigger>
+                <SelectContent>
+                  {niches.map((niche) => (
+                    <SelectItem key={niche} value={niche}>{niche}</SelectItem>
+                  ))}
+                  <SelectItem value="custom">+ Adicionar nicho personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
 
@@ -306,17 +370,17 @@ export const LeadCaptureForm = () => {
         </div>
 
         {/* Score Preview */}
-        {previewScore !== null && (
+        {calculatedScore > 0 && (
           <div className="p-4 bg-muted rounded-lg">
             <div className="flex items-center gap-3">
-              <Star className={`h-5 w-5 ${getScoreColor(previewScore)}`} />
+              <Star className={`h-5 w-5 ${getScoreColor(calculatedScore)}`} />
               <div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xl font-bold ${getScoreColor(previewScore)}`}>
-                    {previewScore.toFixed(1)}
+                  <span className={`text-xl font-bold ${getScoreColor(calculatedScore)}`}>
+                    {calculatedScore.toFixed(1)}
                   </span>
-                  <Badge variant={previewScore >= 7 ? "default" : previewScore >= 4 ? "secondary" : "destructive"}>
-                    {getScoreLabel(previewScore)}
+                  <Badge variant={calculatedScore >= 7 ? "default" : calculatedScore >= 4 ? "secondary" : "destructive"}>
+                    {getScoreLabel(calculatedScore)}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
