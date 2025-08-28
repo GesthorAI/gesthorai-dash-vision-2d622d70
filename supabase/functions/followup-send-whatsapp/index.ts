@@ -17,6 +17,8 @@ interface FollowupItem {
   id: string;
   lead_id: string;
   message: string;
+  message_sequence?: number;
+  total_messages?: number;
   lead: {
     name: string;
     phone: string;
@@ -71,11 +73,15 @@ serve(async (req) => {
         id,
         lead_id,
         message,
+        message_sequence,
+        total_messages,
         leads!inner(name, phone, normalized_phone)
       `)
       .eq('run_id', body.runId)
       .eq('status', 'pending')
-      .limit(batchSize);
+      .order('lead_id')
+      .order('message_sequence')
+      .limit(batchSize * 3); // Allow for multiple messages per lead
 
     if (itemsError) {
       console.error('Error fetching run items:', itemsError);
@@ -97,109 +103,143 @@ serve(async (req) => {
     let sentCount = 0;
     let failedCount = 0;
 
-    // Process each item with delay
-    for (const item of items) {
-      try {
-        const phone = item.leads.normalized_phone || item.leads.phone.replace(/\D/g, '');
-        const whatsappNumber = phone.startsWith('55') ? phone : `55${phone}`;
+    // Group messages by lead_id for sequential sending
+    const messagesByLead = new Map<string, FollowupItem[]>();
+    items.forEach(item => {
+      if (!messagesByLead.has(item.lead_id)) {
+        messagesByLead.set(item.lead_id, []);
+      }
+      messagesByLead.get(item.lead_id)!.push(item);
+    });
 
-        let sendResult = { success: false, error: 'Simulation mode' };
+    console.log(`Processing messages for ${messagesByLead.size} leads`);
 
-        // Send via Evolution API if configured
-        if (evolutionApiUrl && evolutionApiKey && evolutionInstanceName) {
-          try {
-            const evolutionResponse = await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': evolutionApiKey,
-              },
-              body: JSON.stringify({
-                number: whatsappNumber,
-                text: item.message,
-                delay: 1000,
-                quoted: {
-                  key: {
-                    remoteJid: `${whatsappNumber}@s.whatsapp.net`,
-                    fromMe: false,
-                    id: 'message_id'
+    // Process each lead's messages sequentially
+    for (const [leadId, leadMessages] of messagesByLead) {
+      console.log(`Processing ${leadMessages.length} messages for lead ${leadId}`);
+      
+      // Sort messages by sequence to ensure correct order
+      leadMessages.sort((a, b) => (a.message_sequence || 1) - (b.message_sequence || 1));
+
+      for (const item of leadMessages) {
+        try {
+          const phone = item.leads.normalized_phone || item.leads.phone.replace(/\D/g, '');
+          const whatsappNumber = phone.startsWith('55') ? phone : `55${phone}`;
+
+          let sendResult = { success: false, error: 'Simulation mode' };
+
+          // Send via Evolution API if configured
+          if (evolutionApiUrl && evolutionApiKey && evolutionInstanceName) {
+            try {
+              const evolutionResponse = await fetch(`${evolutionApiUrl}/message/sendText/${evolutionInstanceName}`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': evolutionApiKey,
+                },
+                body: JSON.stringify({
+                  number: whatsappNumber,
+                  text: item.message,
+                  delay: 1000,
+                  quoted: {
+                    key: {
+                      remoteJid: `${whatsappNumber}@s.whatsapp.net`,
+                      fromMe: false,
+                      id: 'message_id'
+                    }
                   }
-                }
-              }),
-            });
+                }),
+              });
 
-            if (evolutionResponse.ok) {
-              sendResult = { success: true };
-              console.log(`Message sent successfully to ${whatsappNumber}`);
-            } else {
-              const errorData = await evolutionResponse.text();
-              sendResult = { success: false, error: `Evolution API error: ${errorData}` };
-              console.error(`Failed to send to ${whatsappNumber}:`, errorData);
+              if (evolutionResponse.ok) {
+                sendResult = { success: true };
+                console.log(`Message ${item.message_sequence || 1}/${item.total_messages || 1} sent successfully to ${whatsappNumber}`);
+              } else {
+                const errorData = await evolutionResponse.text();
+                sendResult = { success: false, error: `Evolution API error: ${errorData}` };
+                console.error(`Failed to send message ${item.message_sequence || 1} to ${whatsappNumber}:`, errorData);
+              }
+            } catch (evolutionError) {
+              sendResult = { success: false, error: `Evolution API request failed: ${evolutionError.message}` };
+              console.error('Evolution API request error:', evolutionError);
             }
-          } catch (evolutionError) {
-            sendResult = { success: false, error: `Evolution API request failed: ${evolutionError.message}` };
-            console.error('Evolution API request error:', evolutionError);
+          } else {
+            // Simulation mode - mark as sent
+            sendResult = { success: true };
+            console.log(`[SIMULATION] Would send message ${item.message_sequence || 1}/${item.total_messages || 1} to ${whatsappNumber}: ${item.message.substring(0, 50)}...`);
           }
-        } else {
-          // Simulation mode - mark as sent
-          sendResult = { success: true };
-          console.log(`[SIMULATION] Would send to ${whatsappNumber}: ${item.message.substring(0, 50)}...`);
-        }
 
-        // Update item status
-        const updateData = {
-          status: sendResult.success ? 'sent' : 'failed',
-          sent_at: sendResult.success ? new Date().toISOString() : null,
-          error_message: sendResult.success ? null : sendResult.error
-        };
+          // Update item status
+          const updateData = {
+            status: sendResult.success ? 'sent' : 'failed',
+            sent_at: sendResult.success ? new Date().toISOString() : null,
+            error_message: sendResult.success ? null : sendResult.error
+          };
 
-        await supabaseClient
-          .from('followup_run_items')
-          .update(updateData)
-          .eq('id', item.id);
-
-        // Log communication
-        if (sendResult.success) {
           await supabaseClient
-            .from('communications')
-            .insert({
-              user_id: user.id,
-              lead_id: item.lead_id,
-              type: 'follow_up',
-              channel: 'whatsapp',
-              message: item.message,
-              status: 'sent',
-              metadata: { run_id: body.runId, phone: whatsappNumber }
-            });
+            .from('followup_run_items')
+            .update(updateData)
+            .eq('id', item.id);
 
-          // Update lead's last_contacted_at
+          // Log communication
+          if (sendResult.success) {
+            await supabaseClient
+              .from('communications')
+              .insert({
+                user_id: user.id,
+                lead_id: item.lead_id,
+                type: 'follow_up',
+                channel: 'whatsapp',
+                message: item.message,
+                status: 'sent',
+                metadata: { 
+                  run_id: body.runId, 
+                  phone: whatsappNumber,
+                  message_sequence: item.message_sequence || 1,
+                  total_messages: item.total_messages || 1
+                }
+              });
+
+            sentCount++;
+          } else {
+            failedCount++;
+          }
+
+          // Add delay between messages within the same lead sequence  
+          if (leadMessages.indexOf(item) < leadMessages.length - 1) {
+            console.log(`Waiting ${delayMs}ms before next message in sequence...`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+          }
+
+        } catch (error) {
+          console.error(`Error processing item ${item.id}:`, error);
+          
           await supabaseClient
-            .from('leads')
-            .update({ last_contacted_at: new Date().toISOString() })
-            .eq('id', item.lead_id);
+            .from('followup_run_items')
+            .update({
+              status: 'failed',
+              error_message: error.message
+            })
+            .eq('id', item.id);
 
-          sentCount++;
-        } else {
           failedCount++;
         }
+      }
 
-        // Add delay between messages (except for the last one)
-        if (items.indexOf(item) < items.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-
-      } catch (error) {
-        console.error(`Error processing item ${item.id}:`, error);
-        
+      // Update lead's last_contacted_at after all messages are sent for this lead
+      const successfulMessages = leadMessages.filter(msg => sentCount > 0);
+      if (successfulMessages.length > 0) {
         await supabaseClient
-          .from('followup_run_items')
-          .update({
-            status: 'failed',
-            error_message: error.message
-          })
-          .eq('id', item.id);
+          .from('leads')
+          .update({ last_contacted_at: new Date().toISOString() })
+          .eq('id', leadId);
+      }
 
-        failedCount++;
+      // Add delay between different leads to avoid rate limiting
+      const leadIds = Array.from(messagesByLead.keys());
+      if (leadIds.indexOf(leadId) < leadIds.length - 1) {
+        console.log(`Waiting ${Math.min(delayMs, 1000)}ms before next lead...`);
+        await new Promise(resolve => setTimeout(resolve, Math.min(delayMs, 1000)));
       }
     }
 

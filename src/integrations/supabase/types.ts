@@ -90,9 +90,11 @@ export type Database = {
           id: string
           lead_id: string
           message: string | null
+          message_sequence: number | null
           run_id: string
           sent_at: string | null
           status: string
+          total_messages: number | null
           updated_at: string
         }
         Insert: {
@@ -101,9 +103,11 @@ export type Database = {
           id?: string
           lead_id: string
           message?: string | null
+          message_sequence?: number | null
           run_id: string
           sent_at?: string | null
           status?: string
+          total_messages?: number | null
           updated_at?: string
         }
         Update: {
@@ -112,9 +116,11 @@ export type Database = {
           id?: string
           lead_id?: string
           message?: string | null
+          message_sequence?: number | null
           run_id?: string
           sent_at?: string | null
           status?: string
+          total_messages?: number | null
           updated_at?: string
         }
         Relationships: []
