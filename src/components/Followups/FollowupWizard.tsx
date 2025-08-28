@@ -21,6 +21,13 @@ interface FollowupFilters {
   excludeContacted?: boolean;
 }
 
+interface PersonaConfig {
+  name: string;
+  systemPrompt: string;
+  useJinaAI: boolean;
+  messageDelay: number;
+}
+
 interface WizardProps {
   onClose?: () => void;
 }
@@ -33,6 +40,18 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   const [useAI, setUseAI] = useState(false);
   const [useN8n, setUseN8n] = useState(false);
   const [currentRunId, setCurrentRunId] = useState<string>('');
+  const [personaConfig, setPersonaConfig] = useState<PersonaConfig>({
+    name: 'Milene',
+    systemPrompt: `<quem_voce_e>
+Você é um copywriter sênior especializado em marketing conversacional e vendas consultivas, com 10+ anos de experiência em comunicação persuasiva. Sua personalidade combina expertise técnica com abordagem humanizada — você é estratégico como um consultor de negócios, empático como um psicólogo e persuasivo como um vendedor top performer. Você entende profundamente como despertar curiosidade genuína e construir conexões através de mensagens personalizadas.
+</quem_voce_e>
+
+<seu_objetivo>
+Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleçam conexão imediata com prospects qualificados, despertem curiosidade sobre estratégias para atrair mais clientes e aumentar faturamento, gerem alta taxa de resposta através de personalização estratégica, posicionem o marketing digital e o fortalecimento da presença online como evolução natural do negócio, e iniciem conversas consultivas, não vendas agressivas.
+</seu_objetivo>`,
+    useJinaAI: false,
+    messageDelay: 3
+  });
 
   const { data: leads } = useLeads(filters);
   const { data: templates } = useMessageTemplates();
@@ -85,7 +104,8 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
           runId: currentRunId,
           filters,
           templateId: selectedTemplateId,
-          generateWithAI: useAI
+          generateWithAI: useAI,
+          personaConfig: useAI ? personaConfig : undefined
         });
         setCurrentStep(4);
       } catch (error) {
@@ -102,13 +122,14 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
         await dispatchToN8n.mutateAsync({
           runId: currentRunId,
           templateId: selectedTemplateId,
-          filters
+          filters,
+          personaConfig
         });
       } else {
         await sendMessages.mutateAsync({
           runId: currentRunId,
           batchSize: 10,
-          delayMs: 2000
+          delayMs: personaConfig.messageDelay * 1000
         });
       }
       
@@ -265,9 +286,61 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
                   />
                   <Label htmlFor="useAI" className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4" />
-                    Personalizar mensagens com IA
+                    Gerar 3 mensagens consultivas personalizadas
                   </Label>
                 </div>
+
+                {useAI && !useN8n && (
+                  <Card className="p-4 bg-muted/20">
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="personaName">Nome da Persona</Label>
+                          <Input
+                            id="personaName"
+                            value={personaConfig.name}
+                            onChange={(e) => setPersonaConfig(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Ex: Milene, João, etc."
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="messageDelay">Intervalo entre mensagens (seg)</Label>
+                          <Input
+                            id="messageDelay"
+                            type="number"
+                            value={personaConfig.messageDelay}
+                            onChange={(e) => setPersonaConfig(prev => ({ ...prev, messageDelay: parseInt(e.target.value) || 3 }))}
+                            placeholder="3"
+                            min="1"
+                            max="30"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <Label htmlFor="systemPrompt">Prompt do Sistema (Persona)</Label>
+                        <Textarea
+                          id="systemPrompt"
+                          value={personaConfig.systemPrompt}
+                          onChange={(e) => setPersonaConfig(prev => ({ ...prev, systemPrompt: e.target.value }))}
+                          placeholder="Defina como a IA deve se comportar..."
+                          className="min-h-[120px]"
+                        />
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="useJinaAI"
+                          checked={personaConfig.useJinaAI}
+                          onCheckedChange={(checked) => setPersonaConfig(prev => ({ ...prev, useJinaAI: !!checked }))}
+                        />
+                        <Label htmlFor="useJinaAI" className="text-sm">
+                          Usar Jina AI para análise do site do lead
+                        </Label>
+                      </div>
+                    </div>
+                  </Card>
+                )}
 
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -283,6 +356,47 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
                     Enviar via n8n (workflow externo)
                   </Label>
                 </div>
+
+                {useN8n && (
+                  <Card className="p-4 bg-muted/20">
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="n8nPersonaName">Nome da Persona (n8n)</Label>
+                          <Input
+                            id="n8nPersonaName"
+                            value={personaConfig.name}
+                            onChange={(e) => setPersonaConfig(prev => ({ ...prev, name: e.target.value }))}
+                            placeholder="Ex: Milene, João, etc."
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="n8nMessageDelay">Intervalo entre mensagens (seg)</Label>
+                          <Input
+                            id="n8nMessageDelay"
+                            type="number"
+                            value={personaConfig.messageDelay}
+                            onChange={(e) => setPersonaConfig(prev => ({ ...prev, messageDelay: parseInt(e.target.value) || 3 }))}
+                            placeholder="3"
+                            min="1"
+                            max="30"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="n8nUseJinaAI"
+                          checked={personaConfig.useJinaAI}
+                          onCheckedChange={(checked) => setPersonaConfig(prev => ({ ...prev, useJinaAI: !!checked }))}
+                        />
+                        <Label htmlFor="n8nUseJinaAI" className="text-sm">
+                          Usar Jina AI para análise do site (processado no n8n)
+                        </Label>
+                      </div>
+                    </div>
+                  </Card>
+                )}
               </div>
             </div>
           </div>

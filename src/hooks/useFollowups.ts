@@ -232,6 +232,12 @@ export const usePrepareFollowupRun = () => {
       filters: Record<string, any>;
       templateId: string;
       generateWithAI?: boolean;
+      personaConfig?: {
+        name: string;
+        systemPrompt: string;
+        useJinaAI: boolean;
+        messageDelay: number;
+      };
     }) => {
       const { data, error } = await supabase.functions.invoke('followup-prepare', {
         body: params,
@@ -310,6 +316,12 @@ export const useDispatchToN8n = () => {
       runId: string;
       templateId: string;
       filters: Record<string, any>;
+      personaConfig?: {
+        name: string;
+        systemPrompt: string;
+        useJinaAI: boolean;
+        messageDelay: number;
+      };
     }) => {
       const { data, error } = await supabase.functions.invoke('n8n-followup-dispatch', {
         body: params,

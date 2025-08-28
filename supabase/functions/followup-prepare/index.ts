@@ -7,6 +7,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface PersonaConfig {
+  name: string;
+  systemPrompt: string;
+  useJinaAI: boolean;
+  messageDelay: number;
+}
+
 interface PrepareRequest {
   runId: string;
   filters: {
@@ -19,6 +26,7 @@ interface PrepareRequest {
   };
   templateId: string;
   generateWithAI?: boolean;
+  personaConfig?: PersonaConfig;
 }
 
 interface Lead {
@@ -32,6 +40,8 @@ interface Lead {
   score: number;
   created_at: string;
   last_contacted_at?: string;
+  website?: string;
+  whatsapp_number?: string;
 }
 
 interface MessageTemplate {
@@ -126,11 +136,31 @@ serve(async (req) => {
     // Generate messages for each lead
     const runItems = [];
     for (const lead of leads || []) {
-      let message = template.message;
+      let messages = [];
 
-      if (body.generateWithAI && Deno.env.get('OPENAI_API_KEY')) {
+      if (body.generateWithAI && body.personaConfig && Deno.env.get('OPENAI_API_KEY')) {
         try {
-          // Generate personalized message with OpenAI
+          // Get Jina AI scraping data if enabled
+          let jinaData = '';
+          if (body.personaConfig.useJinaAI && lead.website) {
+            try {
+              console.log(`Scraping website: ${lead.website}`);
+              const jinaResponse = await fetch(`https://r.jina.ai/${lead.website}`, {
+                headers: {
+                  'Accept': 'application/json',
+                  'User-Agent': 'Mozilla/5.0 (compatible; GesthorAI/1.0)'
+                }
+              });
+              if (jinaResponse.ok) {
+                jinaData = await jinaResponse.text();
+                console.log(`Jina AI scraping successful for ${lead.website}`);
+              }
+            } catch (jinaError) {
+              console.log(`Jina AI scraping failed for ${lead.website}:`, jinaError);
+            }
+          }
+
+          // Generate 3 consultative messages with dynamic persona
           const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -142,55 +172,79 @@ serve(async (req) => {
               messages: [
                 {
                   role: 'system',
-                  content: `Você é um especialista em gerar mensagens de follow-up personalizadas para WhatsApp. 
-                  Baseie-se no template fornecido mas personalize com informações específicas do lead.
-                  Seja natural, cordial e profissional. Mantenha a mensagem curta (máximo 2 parágrafos).`
+                  content: body.personaConfig.systemPrompt
                 },
                 {
                   role: 'user',
-                  content: `Template: ${template.message}
-                  
-                  Informações do lead:
-                  - Nome: ${lead.name}
-                  - Negócio: ${lead.business}
-                  - Cidade: ${lead.city}
-                  - Nicho: ${lead.niche}
-                  - Score: ${lead.score}
-                  
-                  Gere uma mensagem personalizada mantendo o tom e objetivo do template:`
+                  content: `Nome da empresa: ${lead.business || lead.name}
+Scraper do site da empresa: ${jinaData || 'Site não disponível ou análise desabilitada'}
+Rating no Google: ${lead.score || 'N/A'}
+Reviews no Google: N/A
+Especialidades: ${lead.niche}
+
+Prompt User: Use as variáveis {{$json.nome_prospecto}} para o nome "${lead.name}" na primeira mensagem.
+
+Responda APENAS com um JSON válido no formato:
+[
+  {"part": 1, "message": "Primeira mensagem"},
+  {"part": 2, "message": "Segunda mensagem"}, 
+  {"part": 3, "message": "Terceira mensagem"}
+]
+
+Substitua ${body.personaConfig.name} por seu nome na primeira mensagem. Limite total: 200 tokens para as 3 mensagens.`
                 }
               ],
-              max_completion_tokens: 200
+              max_completion_tokens: 300
             }),
           });
 
           if (openAIResponse.ok) {
             const aiData = await openAIResponse.json();
-            message = aiData.choices[0].message.content;
-            console.log(`Generated AI message for lead ${lead.id}`);
+            const content = aiData.choices[0].message.content;
+            
+            try {
+              // Parse JSON response
+              const parsedMessages = JSON.parse(content);
+              if (Array.isArray(parsedMessages) && parsedMessages.length === 3) {
+                messages = parsedMessages.map(msg => msg.message);
+                console.log(`Generated 3 AI messages for lead ${lead.id}`);
+              } else {
+                throw new Error('Invalid message format');
+              }
+            } catch (parseError) {
+              console.error('Error parsing AI response JSON:', parseError);
+              console.log('Raw AI response:', content);
+              // Fallback to template
+              messages = [template.message.replace(/\{\{name\}\}/g, lead.name)];
+            }
           } else {
             console.error('OpenAI API error, using template message');
+            messages = [template.message.replace(/\{\{name\}\}/g, lead.name)];
           }
         } catch (error) {
-          console.error('Error generating AI message:', error);
-          // Fall back to template with variable replacement
+          console.error('Error generating AI messages:', error);
+          messages = [template.message.replace(/\{\{name\}\}/g, lead.name)];
         }
-      }
-
-      // Replace template variables if not using AI
-      if (!body.generateWithAI || !Deno.env.get('OPENAI_API_KEY')) {
-        message = message
+      } else {
+        // Use template with variable replacement
+        const message = template.message
           .replace(/\{\{name\}\}/g, lead.name)
           .replace(/\{\{business\}\}/g, lead.business)
           .replace(/\{\{city\}\}/g, lead.city)
           .replace(/\{\{niche\}\}/g, lead.niche);
+        messages = [message];
       }
 
-      runItems.push({
-        run_id: body.runId,
-        lead_id: lead.id,
-        message: message,
-        status: 'pending'
+      // Create run items for each message
+      messages.forEach((message, index) => {
+        runItems.push({
+          run_id: body.runId,
+          lead_id: lead.id,
+          message: message,
+          status: 'pending',
+          message_sequence: index + 1,
+          total_messages: messages.length
+        });
       });
     }
 

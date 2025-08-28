@@ -21,9 +21,9 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { runId, templateId, filters } = await req.json();
+    const { runId, templateId, filters, personaConfig } = await req.json();
 
-    console.log('Dispatching to n8n:', { runId, templateId, filters });
+    console.log('Dispatching to n8n:', { runId, templateId, filters, personaConfig });
 
     // Get the followup run details
     const { data: run, error: runError } = await supabase
@@ -110,6 +110,12 @@ serve(async (req) => {
         name: template.name,
         message: template.message,
         variables: template.variables
+      },
+      persona: personaConfig || {
+        name: 'Milene',
+        systemPrompt: 'Você é um especialista em follow-up consultivo.',
+        useJinaAI: false,
+        messageDelay: 3
       },
       leads: leads || [],
       webhookCallbackUrl: `${supabaseUrl}/functions/v1/webhook-followup-status`,
