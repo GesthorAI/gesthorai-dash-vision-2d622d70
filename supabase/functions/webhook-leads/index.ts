@@ -141,7 +141,7 @@ serve(async (req) => {
     if (leads.length > 0 && status === 'concluida') {
       console.log(`Processing ${leads.length} leads for insertion`);
       
-      // Filter leads - now with more flexible criteria
+      // Filter leads - accept leads with at least one contact information
       const validLeads = leads.filter(lead => {
         // Skip WhatsApp verification objects without business data
         if (lead.jid && !lead.name && !lead.business && !lead.phone && !lead.email) {
@@ -160,13 +160,13 @@ serve(async (req) => {
       console.log(`Found ${validLeads.length} valid leads out of ${leads.length} total leads (${skippedCount} skipped)`);
       
       if (validLeads.length > 0) {
-        // Transform leads data with proper field mapping
+        // Transform leads data
         const leadsToInsert = validLeads.map((lead) => {
           // Ensure we have a name - use business as fallback, then a default
           const leadName = lead.name || lead.business || 'Contato';
           const leadBusiness = lead.business || lead.name || leadName;
           
-          const transformedLead = {
+          return {
             // Required fields - ensure name is never empty
             name: leadName,
             business: leadBusiness,
@@ -180,7 +180,7 @@ serve(async (req) => {
             score: lead.score || 1,
             status: 'novo',
             
-            // WhatsApp specific fields - proper mapping
+            // WhatsApp specific fields
             whatsapp_jid: lead.jid || null,
             whatsapp_exists: lead.exists ?? null,
             whatsapp_number: lead.number || null,
@@ -191,55 +191,92 @@ serve(async (req) => {
             search_id: search_id,
             user_id: searchData.user_id,
           };
-          
-          return transformedLead;
         });
         
         console.log('Sample transformed lead:', JSON.stringify(leadsToInsert[0], null, 2));
         console.log(`Inserting ${leadsToInsert.length} transformed leads`);
         
-        // Insert leads with duplicate detection using the new normalized fields and indexes
+        // Insert leads using the new unique indexes for conflict resolution
         for (const lead of leadsToInsert) {
           try {
-            // Use upsert with the normalized phone/email approach
-            // The trigger will automatically normalize the fields
-            const insertResult = await supabase
-              .from('leads')
-              .upsert(lead, { 
-                onConflict: 'user_id,normalized_phone',
-                ignoreDuplicates: false 
-              })
-              .select();
+            // Try phone-based upsert first if phone exists
+            if (lead.phone) {
+              const phoneResult = await supabase
+                .from('leads')
+                .upsert(lead, { 
+                  onConflict: 'user_id,normalized_phone',
+                  ignoreDuplicates: false 
+                })
+                .select();
 
-            if (insertResult.error) {
-              // If phone conflict fails, try email
-              if (insertResult.error.code === '23505' && lead.email) {
-                const emailResult = await supabase
-                  .from('leads')
-                  .upsert(lead, { 
-                    onConflict: 'user_id,normalized_email',
-                    ignoreDuplicates: false 
-                  })
-                  .select();
-                
-                if (emailResult.error) {
-                  if (emailResult.error.code === '23505') {
-                    duplicateCount++;
-                    console.log('Duplicate lead ignored (by email):', lead.name);
+              if (phoneResult.error) {
+                if (phoneResult.error.code === '23505') {
+                  // If it's still a unique constraint error, try email
+                  if (lead.email) {
+                    const emailResult = await supabase
+                      .from('leads')
+                      .upsert(lead, { 
+                        onConflict: 'user_id,normalized_email',
+                        ignoreDuplicates: false 
+                      })
+                      .select();
+                    
+                    if (emailResult.error) {
+                      if (emailResult.error.code === '23505') {
+                        duplicateCount++;
+                        console.log('Duplicate lead ignored (by email):', lead.name);
+                      } else {
+                        console.error('Error inserting lead (email attempt):', emailResult.error);
+                      }
+                    } else if (emailResult.data && emailResult.data.length > 0) {
+                      insertedCount++;
+                      console.log('Lead inserted via email:', lead.name);
+                    }
                   } else {
-                    console.error('Error inserting lead (email attempt):', emailResult.error);
+                    duplicateCount++;
+                    console.log('Duplicate lead ignored (by phone, no email):', lead.name);
                   }
-                } else if (emailResult.data && emailResult.data.length > 0) {
-                  insertedCount++;
+                } else {
+                  console.error('Error inserting lead (phone attempt):', phoneResult.error);
                 }
-              } else if (insertResult.error.code === '23505') {
-                duplicateCount++;
-                console.log('Duplicate lead ignored (by phone):', lead.name);
-              } else {
-                console.error('Error inserting lead:', insertResult.error);
+              } else if (phoneResult.data && phoneResult.data.length > 0) {
+                insertedCount++;
+                console.log('Lead inserted via phone:', lead.name);
               }
-            } else if (insertResult.data && insertResult.data.length > 0) {
-              insertedCount++;
+            } else if (lead.email) {
+              // No phone, try email
+              const emailResult = await supabase
+                .from('leads')
+                .upsert(lead, { 
+                  onConflict: 'user_id,normalized_email',
+                  ignoreDuplicates: false 
+                })
+                .select();
+              
+              if (emailResult.error) {
+                if (emailResult.error.code === '23505') {
+                  duplicateCount++;
+                  console.log('Duplicate lead ignored (by email only):', lead.name);
+                } else {
+                  console.error('Error inserting lead (email only):', emailResult.error);
+                }
+              } else if (emailResult.data && emailResult.data.length > 0) {
+                insertedCount++;
+                console.log('Lead inserted via email only:', lead.name);
+              }
+            } else {
+              // No phone or email, insert normally (will likely create duplicates but better than losing data)
+              const normalResult = await supabase
+                .from('leads')
+                .insert(lead)
+                .select();
+              
+              if (normalResult.error) {
+                console.error('Error inserting lead (no contact info):', normalResult.error);
+              } else if (normalResult.data && normalResult.data.length > 0) {
+                insertedCount++;
+                console.log('Lead inserted without contact info:', lead.name);
+              }
             }
           } catch (error) {
             console.error('Error processing lead:', error);
@@ -247,7 +284,7 @@ serve(async (req) => {
           }
         }
 
-        console.log(`Processing complete: ${insertedCount} inserted, ${duplicateCount} duplicates ignored`);
+        console.log(`Processing complete: ${insertedCount} inserted, ${duplicateCount} duplicates ignored, ${skippedCount} skipped`);
       } else {
         console.log('No valid leads to insert');
       }
@@ -257,9 +294,9 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         message: `Search ${search_id} updated to ${status}`,
-        leads_inserted: status === 'concluida' ? (insertedCount || 0) : 0,
-        duplicates_ignored: status === 'concluida' ? (duplicateCount || 0) : 0,
-        leads_skipped: status === 'concluida' ? (skippedCount || 0) : 0
+        leads_inserted: status === 'concluida' ? insertedCount : 0,
+        duplicates_ignored: status === 'concluida' ? duplicateCount : 0,
+        leads_skipped: status === 'concluida' ? skippedCount : 0
       }),
       { 
         status: 200, 
