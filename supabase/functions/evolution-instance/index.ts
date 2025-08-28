@@ -99,8 +99,6 @@ serve(async (req) => {
             instanceName: targetInstanceName,
             token: evolutionApiKey,
             qrcode: true,
-            number: false,
-            webhook: false,
           }),
         });
 
@@ -127,12 +125,25 @@ serve(async (req) => {
 
           response = { success: true, data: createData };
         } else {
-          const errorMsg = Array.isArray(createData.message) 
-            ? createData.message.join(', ')
-            : createData.message || 'Failed to create instance';
+          // Handle nested arrays and extract meaningful error messages
+          let errorMsg = 'Failed to create instance';
           
-          if (errorMsg.includes('already exists') || errorMsg.includes('já existe')) {
-            response = { success: false, error: 'Esse nome já está em uso na Evolution. Escolha outro.' };
+          if (createData.message) {
+            if (Array.isArray(createData.message)) {
+              // Flatten nested arrays and join messages
+              const flatMessages = createData.message.flat(2).filter(msg => msg);
+              errorMsg = flatMessages.length > 0 ? flatMessages.join(', ') : errorMsg;
+            } else {
+              errorMsg = createData.message;
+            }
+          }
+          
+          // Check for "already in use" messages
+          if (errorMsg.includes('already in use') || 
+              errorMsg.includes('already exists') || 
+              errorMsg.includes('já está em uso') || 
+              errorMsg.includes('já existe')) {
+            response = { success: false, error: 'Este nome já está em uso na Evolution. Escolha outro nome.' };
           } else {
             response = { success: false, error: errorMsg };
           }
