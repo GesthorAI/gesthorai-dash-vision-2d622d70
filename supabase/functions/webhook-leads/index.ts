@@ -197,89 +197,29 @@ serve(async (req) => {
         console.log(`Inserting ${leadsToInsert.length} transformed leads`);
         
         // Insert leads using the new unique indexes for conflict resolution
+        // Note: normalized_phone and normalized_email will be set automatically by the trigger
         for (const lead of leadsToInsert) {
           try {
-            // Try phone-based upsert first if phone exists
-            if (lead.phone) {
-              const phoneResult = await supabase
-                .from('leads')
-                .upsert(lead, { 
-                  onConflict: 'user_id,normalized_phone',
-                  ignoreDuplicates: false 
-                })
-                .select();
+            // Try direct insert first - let the unique constraints handle duplicates
+            const { data, error } = await supabase
+              .from('leads')
+              .insert(lead)
+              .select();
 
-              if (phoneResult.error) {
-                if (phoneResult.error.code === '23505') {
-                  // If it's still a unique constraint error, try email
-                  if (lead.email) {
-                    const emailResult = await supabase
-                      .from('leads')
-                      .upsert(lead, { 
-                        onConflict: 'user_id,normalized_email',
-                        ignoreDuplicates: false 
-                      })
-                      .select();
-                    
-                    if (emailResult.error) {
-                      if (emailResult.error.code === '23505') {
-                        duplicateCount++;
-                        console.log('Duplicate lead ignored (by email):', lead.name);
-                      } else {
-                        console.error('Error inserting lead (email attempt):', emailResult.error);
-                      }
-                    } else if (emailResult.data && emailResult.data.length > 0) {
-                      insertedCount++;
-                      console.log('Lead inserted via email:', lead.name);
-                    }
-                  } else {
-                    duplicateCount++;
-                    console.log('Duplicate lead ignored (by phone, no email):', lead.name);
-                  }
-                } else {
-                  console.error('Error inserting lead (phone attempt):', phoneResult.error);
-                }
-              } else if (phoneResult.data && phoneResult.data.length > 0) {
-                insertedCount++;
-                console.log('Lead inserted via phone:', lead.name);
+            if (error) {
+              if (error.code === '23505') {
+                // Unique constraint violation - this is a duplicate
+                duplicateCount++;
+                console.log('Duplicate lead ignored:', lead.name, error.details);
+              } else {
+                console.error('Error inserting lead:', lead.name, error);
               }
-            } else if (lead.email) {
-              // No phone, try email
-              const emailResult = await supabase
-                .from('leads')
-                .upsert(lead, { 
-                  onConflict: 'user_id,normalized_email',
-                  ignoreDuplicates: false 
-                })
-                .select();
-              
-              if (emailResult.error) {
-                if (emailResult.error.code === '23505') {
-                  duplicateCount++;
-                  console.log('Duplicate lead ignored (by email only):', lead.name);
-                } else {
-                  console.error('Error inserting lead (email only):', emailResult.error);
-                }
-              } else if (emailResult.data && emailResult.data.length > 0) {
-                insertedCount++;
-                console.log('Lead inserted via email only:', lead.name);
-              }
-            } else {
-              // No phone or email, insert normally (will likely create duplicates but better than losing data)
-              const normalResult = await supabase
-                .from('leads')
-                .insert(lead)
-                .select();
-              
-              if (normalResult.error) {
-                console.error('Error inserting lead (no contact info):', normalResult.error);
-              } else if (normalResult.data && normalResult.data.length > 0) {
-                insertedCount++;
-                console.log('Lead inserted without contact info:', lead.name);
-              }
+            } else if (data && data.length > 0) {
+              insertedCount++;
+              console.log('Lead successfully inserted:', lead.name);
             }
           } catch (error) {
-            console.error('Error processing lead:', error);
+            console.error('Exception processing lead:', lead.name, error);
             continue;
           }
         }
