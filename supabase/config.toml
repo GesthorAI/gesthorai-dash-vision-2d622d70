@@ -12,6 +12,9 @@ verify_jwt = true
 [functions.followup-send-whatsapp]
 verify_jwt = true
 
+[functions.evolution-instance]
+verify_jwt = true
+
 [functions.n8n-followup-dispatch]
 verify_jwt = true
 

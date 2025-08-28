@@ -15,6 +15,7 @@ import { useFilters } from "@/hooks/useFilters";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useSelection } from "@/hooks/useSelection";
 import { PlayCircle, Users, Settings, MessageSquare, Filter, X } from "lucide-react";
+import { WhatsAppConnectDialog } from "@/components/WhatsApp/WhatsAppConnectDialog";
 
 const Operations = () => {
   const [activeTab, setActiveTab] = useState("bulk");
@@ -203,12 +204,22 @@ const Operations = () => {
         </TabsContent>
 
         <TabsContent value="settings">
-          <Card className="p-6">
-            <h3 className="text-lg font-semibold mb-4">Configurações Operacionais</h3>
-            <p className="text-muted-foreground">
-              Configurações avançadas de operação em desenvolvimento...
-            </p>
-          </Card>
+          <div className="space-y-6">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Integração WhatsApp</h3>
+              <p className="text-muted-foreground mb-4">
+                Configure sua instância WhatsApp para envio automático de mensagens de follow-up.
+              </p>
+              <WhatsAppConnectDialog />
+            </Card>
+            
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Outras Configurações</h3>
+              <p className="text-muted-foreground">
+                Configurações avançadas de operação em desenvolvimento...
+              </p>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
 
