@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, CheckCircle, AlertCircle, XCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRecentSearches, useCreateSearch } from "@/hooks/useSearches";
-import { useLeadsByDateRange } from "@/hooks/useLeads";
+import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useRealtimeSearches } from "@/hooks/useRealtimeSearches";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,18 +21,6 @@ import { AdvancedSearchForm } from "@/components/Search/AdvancedSearchForm";
 import { LeadCaptureForm } from "@/components/Search/LeadCaptureForm";
 import { ImportExportPanel } from "@/components/Search/ImportExportPanel";
 import { useSearchOptions } from "@/hooks/useSearchOptions";
-
-const mockRecentSearches = [
-  { id: 1, nicho: "Restaurantes", cidade: "Rio de Janeiro", status: "concluida", total: 45, timestamp: "2024-01-15 14:30" },
-  { id: 2, nicho: "Academias", cidade: "São Paulo", status: "processando", total: 32, timestamp: "2024-01-15 13:15" },
-  { id: 3, nicho: "Salões", cidade: "Belo Horizonte", status: "concluida", total: 28, timestamp: "2024-01-15 11:45" },
-];
-
-const mockRecentLeads = [
-  { nome: "Maria Silva", negocio: "Restaurante Bom Sabor", cidade: "Rio de Janeiro", telefone: "21999887766", timestamp: "14:30" },
-  { nome: "João Santos", negocio: "Academia Fitness", cidade: "São Paulo", telefone: "11988776655", timestamp: "13:45" },
-  { nome: "Ana Costa", negocio: "Salão Beleza Total", cidade: "Belo Horizonte", telefone: "31977665544", timestamp: "12:20" },
-];
 
 export const LeadSearch = () => {
   const [selectedNicho, setSelectedNicho] = useState<string>("");
@@ -44,9 +33,9 @@ export const LeadSearch = () => {
   const { session } = useAuth();
   const { niches, cities, addNiche, addCity } = useSearchOptions();
 
-  // Fetch real data
+  // Fetch real data - using realtime for leads to get automatic updates
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(20);
-  const { data: recentLeads = [], isLoading: leadsLoading } = useLeadsByDateRange(1);
+  const { data: recentLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime({ dateRange: 1 });
   const createSearch = useCreateSearch();
 
   const handleSearch = async () => {
