@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { useCreateSearch } from "@/hooks/useSearches";
+import { useSearchOptions } from "@/hooks/useSearchOptions";
 import { 
   Search, 
   Settings, 
@@ -61,19 +62,7 @@ export const AdvancedSearchForm = ({ onSearchStart }: AdvancedSearchFormProps) =
 
   const { toast } = useToast();
   const createSearch = useCreateSearch();
-
-  const predefinedNiches = [
-    "Restaurantes", "Academias", "Salões de Beleza", "Clínicas Médicas",
-    "Escritórios de Advocacia", "Consultórios Odontológicos", "Pet Shops",
-    "Lojas de Roupas", "Farmácias", "Oficinas Mecânicas", "Imobiliárias",
-    "Escolas Particulares", "Corretoras de Seguros", "Agências de Viagem"
-  ];
-
-  const predefinedCities = [
-    "São Paulo", "Rio de Janeiro", "Belo Horizonte", "Salvador", "Brasília",
-    "Fortaleza", "Curitiba", "Recife", "Porto Alegre", "Manaus", "Belém",
-    "Goiânia", "Guarulhos", "Campinas", "São Luís", "Maceió", "Natal"
-  ];
+  const { niches, cities, addNiche, addCity } = useSearchOptions();
 
   const dataSources = [
     { id: "google_maps", label: "Google Maps", description: "Empresas listadas no Google Maps" },
@@ -129,6 +118,14 @@ export const AdvancedSearchForm = ({ onSearchStart }: AdvancedSearchFormProps) =
         variant: "destructive"
       });
       return;
+    }
+
+    // Persist new values if typed
+    if (customNiche.trim()) {
+      addNiche(customNiche.trim());
+    }
+    if (customCity.trim()) {
+      addCity(customCity.trim());
     }
 
     setIsSearching(true);
@@ -192,7 +189,7 @@ export const AdvancedSearchForm = ({ onSearchStart }: AdvancedSearchFormProps) =
                 <SelectValue placeholder="Selecione um nicho" />
               </SelectTrigger>
               <SelectContent>
-                {predefinedNiches.map((niche) => (
+                {niches.map((niche) => (
                   <SelectItem key={niche} value={niche}>{niche}</SelectItem>
                 ))}
               </SelectContent>
@@ -211,7 +208,7 @@ export const AdvancedSearchForm = ({ onSearchStart }: AdvancedSearchFormProps) =
                 <SelectValue placeholder="Selecione uma cidade" />
               </SelectTrigger>
               <SelectContent>
-                {predefinedCities.map((city) => (
+                {cities.map((city) => (
                   <SelectItem key={city} value={city}>{city}</SelectItem>
                 ))}
               </SelectContent>

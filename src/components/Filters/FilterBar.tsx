@@ -5,33 +5,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Filter, X } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { useFilters } from "@/hooks/useFilters";
+import { useSearchOptions } from "@/hooks/useSearchOptions";
 import { Badge } from "@/components/ui/badge";
-
-const nicheOptions = [
-  "Restaurantes",
-  "Clínicas",
-  "Salões de Beleza",
-  "Academia",
-  "Advocacia",
-  "Contabilidade",
-  "Imobiliárias",
-  "Oficinas",
-  "Petshops",
-  "Lojas de Roupas"
-];
-
-const cityOptions = [
-  "São Paulo",
-  "Rio de Janeiro", 
-  "Belo Horizonte",
-  "Porto Alegre",
-  "Salvador",
-  "Brasília",
-  "Curitiba",
-  "Fortaleza",
-  "Recife",
-  "Manaus"
-];
 
 const statusOptions = [
   { value: "novo", label: "Novo" },
@@ -61,6 +36,7 @@ export const FilterBar = () => {
     setStatus,
     clearFilters
   } = useFilters();
+  const { niches, cities } = useSearchOptions();
 
   const hasActiveFilters = selectedNiche || selectedCity || status || dateRange !== 30;
   
@@ -86,7 +62,7 @@ export const FilterBar = () => {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Todos os nichos</SelectItem>
-          {nicheOptions.map((niche) => (
+          {niches.map((niche) => (
             <SelectItem key={niche} value={niche}>
               {niche}
             </SelectItem>
@@ -100,7 +76,7 @@ export const FilterBar = () => {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">Todas as cidades</SelectItem>
-          {cityOptions.map((city) => (
+          {cities.map((city) => (
             <SelectItem key={city} value={city}>
               {city}
             </SelectItem>

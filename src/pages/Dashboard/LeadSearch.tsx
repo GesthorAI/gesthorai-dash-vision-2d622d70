@@ -19,17 +19,7 @@ import { ptBR } from "date-fns/locale";
 import { AdvancedSearchForm } from "@/components/Search/AdvancedSearchForm";
 import { LeadCaptureForm } from "@/components/Search/LeadCaptureForm";
 import { ImportExportPanel } from "@/components/Search/ImportExportPanel";
-
-// Mock data
-const mockNichos = [
-  "Restaurantes", "Lojas de Roupas", "Salões de Beleza", "Academias", 
-  "Clínicas Médicas", "Escritórios de Advocacia", "Imobiliárias"
-];
-
-const mockCidades = [
-  "Rio de Janeiro", "São Paulo", "Belo Horizonte", "Salvador", 
-  "Brasília", "Fortaleza", "Recife", "Porto Alegre"
-];
+import { useSearchOptions } from "@/hooks/useSearchOptions";
 
 const mockRecentSearches = [
   { id: 1, nicho: "Restaurantes", cidade: "Rio de Janeiro", status: "concluida", total: 45, timestamp: "2024-01-15 14:30" },
@@ -52,6 +42,7 @@ export const LeadSearch = () => {
   const { toast } = useToast();
   const { isConnected } = useRealtimeSearches();
   const { session } = useAuth();
+  const { niches, cities, addNiche, addCity } = useSearchOptions();
 
   // Fetch real data
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(20);
@@ -69,6 +60,14 @@ export const LeadSearch = () => {
         variant: "destructive"
       });
       return;
+    }
+
+    // Persist new values if typed
+    if (newNicho.trim()) {
+      addNiche(newNicho.trim());
+    }
+    if (newCidade.trim()) {
+      addCity(newCidade.trim());
     }
 
     setIsSearching(true);
@@ -196,7 +195,7 @@ export const LeadSearch = () => {
                 <SelectValue placeholder="Selecione um nicho" />
               </SelectTrigger>
               <SelectContent>
-                {mockNichos.map((nicho) => (
+                {niches.map((nicho) => (
                   <SelectItem key={nicho} value={nicho}>
                     {nicho}
                   </SelectItem>
@@ -219,7 +218,7 @@ export const LeadSearch = () => {
                 <SelectValue placeholder="Selecione uma cidade" />
               </SelectTrigger>
               <SelectContent>
-                {mockCidades.map((cidade) => (
+                {cities.map((cidade) => (
                   <SelectItem key={cidade} value={cidade}>
                     {cidade}
                   </SelectItem>
