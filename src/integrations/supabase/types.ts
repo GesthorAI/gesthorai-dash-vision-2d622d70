@@ -501,6 +501,51 @@ export type Database = {
         }
         Relationships: []
       }
+      whatsapp_instances: {
+        Row: {
+          created_at: string
+          evolution_instance_id: string | null
+          id: string
+          last_status: string | null
+          metadata: Json
+          name: string
+          number: string | null
+          owner_jid: string | null
+          profile_name: string | null
+          shared_with_users: string[]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          evolution_instance_id?: string | null
+          id?: string
+          last_status?: string | null
+          metadata?: Json
+          name: string
+          number?: string | null
+          owner_jid?: string | null
+          profile_name?: string | null
+          shared_with_users?: string[]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          evolution_instance_id?: string | null
+          id?: string
+          last_status?: string | null
+          metadata?: Json
+          name?: string
+          number?: string | null
+          owner_jid?: string | null
+          profile_name?: string | null
+          shared_with_users?: string[]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       workflows: {
         Row: {
           actions: Json

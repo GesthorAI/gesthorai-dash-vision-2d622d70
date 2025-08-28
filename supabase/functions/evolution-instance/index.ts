@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -7,7 +8,7 @@ const corsHeaders = {
 };
 
 interface EvolutionInstanceRequest {
-  action: 'create' | 'connect' | 'status' | 'qrcode' | 'disconnect';
+  action: 'create' | 'connect' | 'status' | 'qrcode' | 'disconnect' | 'list';
   instanceName?: string;
 }
 
@@ -17,6 +18,7 @@ interface EvolutionResponse {
   error?: string;
   qrcode?: string;
   status?: string;
+  instances?: any[];
 }
 
 serve(async (req) => {
@@ -52,18 +54,40 @@ serve(async (req) => {
 
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    const defaultInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME') || instanceName || `instance_${user.id.slice(0, 8)}`;
+    const defaultInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
 
     if (!evolutionApiUrl || !evolutionApiKey) {
       throw new Error('Evolution API configuration missing');
     }
 
-    console.log(`Evolution API action: ${action} for instance: ${defaultInstanceName}`);
+    // Determine instance name priority: instanceName > defaultInstanceName > user-based fallback
+    const targetInstanceName = instanceName || defaultInstanceName || `instance_${user.id.slice(0, 8)}`;
+
+    console.log(`Evolution API action: ${action} for instance: ${targetInstanceName}`);
 
     let response: EvolutionResponse = { success: false };
 
     switch (action) {
+      case 'list': {
+        // Get user's instances from database
+        const { data: instances, error: dbError } = await supabaseClient
+          .from('whatsapp_instances')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (dbError) {
+          throw new Error(`Database error: ${dbError.message}`);
+        }
+
+        response = { success: true, instances: instances || [] };
+        break;
+      }
+
       case 'create': {
+        if (!instanceName) {
+          throw new Error('Nome da instância é obrigatório');
+        }
+
         // Create new instance
         const createResponse = await fetch(`${evolutionApiUrl}/instance/create`, {
           method: 'POST',
@@ -72,7 +96,7 @@ serve(async (req) => {
             'apikey': evolutionApiKey,
           },
           body: JSON.stringify({
-            instanceName: defaultInstanceName,
+            instanceName: targetInstanceName,
             token: evolutionApiKey,
             qrcode: true,
             number: false,
@@ -84,16 +108,41 @@ serve(async (req) => {
         console.log('Create instance response:', createData);
         
         if (createResponse.ok) {
+          // Save instance to database
+          const { error: dbError } = await supabaseClient
+            .from('whatsapp_instances')
+            .upsert({
+              user_id: user.id,
+              name: targetInstanceName,
+              last_status: 'created',
+              evolution_instance_id: createData.instance?.instanceName || targetInstanceName,
+              metadata: { evolutionData: createData }
+            }, {
+              onConflict: 'user_id,name'
+            });
+
+          if (dbError) {
+            console.error('Database save error:', dbError);
+          }
+
           response = { success: true, data: createData };
         } else {
-          response = { success: false, error: createData.message || 'Failed to create instance' };
+          const errorMsg = Array.isArray(createData.message) 
+            ? createData.message.join(', ')
+            : createData.message || 'Failed to create instance';
+          
+          if (errorMsg.includes('already exists') || errorMsg.includes('já existe')) {
+            response = { success: false, error: 'Esse nome já está em uso na Evolution. Escolha outro.' };
+          } else {
+            response = { success: false, error: errorMsg };
+          }
         }
         break;
       }
 
       case 'connect': {
         // Connect instance (generate QR code)
-        const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${defaultInstanceName}`, {
+        const connectResponse = await fetch(`${evolutionApiUrl}/instance/connect/${targetInstanceName}`, {
           method: 'GET',
           headers: {
             'apikey': evolutionApiKey,
@@ -104,13 +153,28 @@ serve(async (req) => {
         console.log('Connect instance response:', connectData);
         
         if (connectResponse.ok) {
+          // Update instance status in database
+          await supabaseClient
+            .from('whatsapp_instances')
+            .upsert({
+              user_id: user.id,
+              name: targetInstanceName,
+              last_status: 'connecting',
+              metadata: { lastQrCode: connectData.base64 || connectData.qrcode }
+            }, {
+              onConflict: 'user_id,name'
+            });
+
           response = { 
             success: true, 
             data: connectData,
             qrcode: connectData.base64 || connectData.qrcode
           };
         } else {
-          response = { success: false, error: connectData.message || 'Failed to connect instance' };
+          const errorMsg = Array.isArray(connectData.message)
+            ? connectData.message.join(', ')
+            : connectData.message || 'Failed to connect instance';
+          response = { success: false, error: errorMsg };
         }
         break;
       }
@@ -128,24 +192,59 @@ serve(async (req) => {
         console.log('Instance status response:', statusData);
         
         if (statusResponse.ok) {
-          const instanceStatus = Array.isArray(statusData) 
-            ? statusData.find(instance => instance.instance?.instanceName === defaultInstanceName)
-            : statusData;
+          let instanceStatus;
+          let connectionStatus = 'disconnected';
+
+          // Handle different response formats from Evolution API
+          if (Array.isArray(statusData)) {
+            instanceStatus = statusData.find(instance => 
+              instance.instance?.instanceName === targetInstanceName ||
+              instance.instanceName === targetInstanceName
+            );
+          } else if (statusData.instance?.instanceName === targetInstanceName || statusData.instanceName === targetInstanceName) {
+            instanceStatus = statusData;
+          }
+
+          if (instanceStatus) {
+            // Extract connection status from different possible paths
+            connectionStatus = instanceStatus.instance?.connectionStatus || 
+                             instanceStatus.connectionStatus || 
+                             instanceStatus.status || 
+                             'disconnected';
+
+            // Update database with latest status
+            await supabaseClient
+              .from('whatsapp_instances')
+              .upsert({
+                user_id: user.id,
+                name: targetInstanceName,
+                last_status: connectionStatus,
+                number: instanceStatus.instance?.number || instanceStatus.number,
+                owner_jid: instanceStatus.instance?.ownerJid || instanceStatus.ownerJid,
+                profile_name: instanceStatus.instance?.profileName || instanceStatus.profileName,
+                metadata: { evolutionData: instanceStatus }
+              }, {
+                onConflict: 'user_id,name'
+              });
+          }
           
           response = { 
             success: true, 
             data: instanceStatus,
-            status: instanceStatus?.instance?.connectionStatus || 'disconnected'
+            status: connectionStatus
           };
         } else {
-          response = { success: false, error: statusData.message || 'Failed to get instance status' };
+          const errorMsg = Array.isArray(statusData.message)
+            ? statusData.message.join(', ')
+            : statusData.message || 'Failed to get instance status';
+          response = { success: false, error: errorMsg };
         }
         break;
       }
 
       case 'qrcode': {
         // Get QR code
-        const qrResponse = await fetch(`${evolutionApiUrl}/instance/connect/${defaultInstanceName}`, {
+        const qrResponse = await fetch(`${evolutionApiUrl}/instance/connect/${targetInstanceName}`, {
           method: 'GET',
           headers: {
             'apikey': evolutionApiKey,
@@ -156,20 +255,35 @@ serve(async (req) => {
         console.log('QR code response:', qrData);
         
         if (qrResponse.ok) {
+          // Update instance with new QR code
+          await supabaseClient
+            .from('whatsapp_instances')
+            .upsert({
+              user_id: user.id,
+              name: targetInstanceName,
+              last_status: 'qr_generated',
+              metadata: { lastQrCode: qrData.base64 || qrData.qrcode }
+            }, {
+              onConflict: 'user_id,name'
+            });
+
           response = { 
             success: true, 
             data: qrData,
             qrcode: qrData.base64 || qrData.qrcode
           };
         } else {
-          response = { success: false, error: qrData.message || 'Failed to get QR code' };
+          const errorMsg = Array.isArray(qrData.message)
+            ? qrData.message.join(', ')
+            : qrData.message || 'Failed to get QR code';
+          response = { success: false, error: errorMsg };
         }
         break;
       }
 
       case 'disconnect': {
         // Disconnect instance
-        const disconnectResponse = await fetch(`${evolutionApiUrl}/instance/logout/${defaultInstanceName}`, {
+        const disconnectResponse = await fetch(`${evolutionApiUrl}/instance/logout/${targetInstanceName}`, {
           method: 'DELETE',
           headers: {
             'apikey': evolutionApiKey,
@@ -180,9 +294,24 @@ serve(async (req) => {
         console.log('Disconnect instance response:', disconnectData);
         
         if (disconnectResponse.ok) {
+          // Update instance status in database
+          await supabaseClient
+            .from('whatsapp_instances')
+            .update({
+              last_status: 'disconnected',
+              number: null,
+              owner_jid: null,
+              profile_name: null
+            })
+            .eq('user_id', user.id)
+            .eq('name', targetInstanceName);
+
           response = { success: true, data: disconnectData };
         } else {
-          response = { success: false, error: disconnectData.message || 'Failed to disconnect instance' };
+          const errorMsg = Array.isArray(disconnectData.message)
+            ? disconnectData.message.join(', ')
+            : disconnectData.message || 'Failed to disconnect instance';
+          response = { success: false, error: errorMsg };
         }
         break;
       }
