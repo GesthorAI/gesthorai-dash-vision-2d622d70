@@ -14,6 +14,7 @@ import { useRecentSearches, useCreateSearch } from "@/hooks/useSearches";
 import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useRealtimeSearches } from "@/hooks/useRealtimeSearches";
 import { useAuth } from "@/hooks/useAuth";
+import { useLeadScoring } from "@/hooks/useLeadScoring";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -37,6 +38,9 @@ export const LeadSearch = () => {
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(20);
   const { data: recentLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime({ dateRange: 1 });
   const createSearch = useCreateSearch();
+  
+  // Calculate lead scores for display
+  const { scoredLeads } = useLeadScoring(recentLeads);
 
   const handleSearch = async () => {
     const nicho = newNicho.trim() || selectedNicho;
@@ -299,7 +303,7 @@ export const LeadSearch = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentLeads.map((lead) => (
+                {scoredLeads.map((lead) => (
                   <TableRow key={lead.id}>
                     <TableCell className="font-medium">{lead.name}</TableCell>
                     <TableCell>{lead.business}</TableCell>

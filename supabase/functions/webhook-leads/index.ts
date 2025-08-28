@@ -109,29 +109,26 @@ serve(async (req) => {
     
     console.log('Search found:', searchData);
     
-    // Update search status and total_leads
-    const updateData: any = { status };
-    if (finalTotalLeads !== undefined) {
-      updateData.total_leads = finalTotalLeads;
-    }
+    // Update search status initially (will update total_leads after processing leads)
+    const initialUpdateData: any = { status };
     if (webhook_id) {
-      updateData.webhook_id = webhook_id;
+      initialUpdateData.webhook_id = webhook_id;
     }
     
-    const { error: updateError } = await supabase
+    const { error: initialUpdateError } = await supabase
       .from('searches')
-      .update(updateData)
+      .update(initialUpdateData)
       .eq('id', search_id);
       
-    if (updateError) {
-      console.error('Error updating search:', updateError);
+    if (initialUpdateError) {
+      console.error('Error updating search status:', initialUpdateError);
       return new Response(
-        JSON.stringify({ error: 'Failed to update search' }),
+        JSON.stringify({ error: 'Failed to update search status' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    console.log('Search updated successfully');
+    console.log('Search status updated successfully');
     
     // Insert leads if provided and status is concluida
     let insertedCount = 0;
@@ -177,7 +174,6 @@ serve(async (req) => {
             email: lead.email || null,
             source: lead.source || 'webhook',
             niche: lead.niche || searchData.niche,
-            score: lead.score || 1,
             status: 'novo',
             
             // WhatsApp specific fields
@@ -227,6 +223,20 @@ serve(async (req) => {
         console.log(`Processing complete: ${insertedCount} inserted, ${duplicateCount} duplicates ignored, ${skippedCount} skipped`);
       } else {
         console.log('No valid leads to insert');
+      }
+    }
+    
+    // Update total_leads with the actual inserted count for completed searches
+    if (status === 'concluida') {
+      const { error: finalUpdateError } = await supabase
+        .from('searches')
+        .update({ total_leads: insertedCount })
+        .eq('id', search_id);
+        
+      if (finalUpdateError) {
+        console.error('Error updating total_leads:', finalUpdateError);
+      } else {
+        console.log(`Updated total_leads to ${insertedCount} for search ${search_id}`);
       }
     }
     
