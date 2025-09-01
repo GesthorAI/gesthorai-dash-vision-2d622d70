@@ -136,7 +136,7 @@ export const AISettings = () => {
 
   const handleRemoveUserAPIKey = async () => {
     try {
-      await removeUserAPIKey.mutateAsync();
+      await removeUserAPIKey.mutateAsync({});
       toast({
         title: "Chave removida",
         description: "Sua chave OpenAI foi removida com sucesso",
