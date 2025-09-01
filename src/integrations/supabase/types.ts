@@ -14,6 +14,135 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_personas: {
+        Row: {
+          created_at: string
+          description: string | null
+          guidelines: string | null
+          id: string
+          is_active: boolean
+          language: string
+          name: string
+          tone: string
+          updated_at: string
+          user_id: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          guidelines?: string | null
+          id?: string
+          is_active?: boolean
+          language?: string
+          name: string
+          tone?: string
+          updated_at?: string
+          user_id: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          guidelines?: string | null
+          id?: string
+          is_active?: boolean
+          language?: string
+          name?: string
+          tone?: string
+          updated_at?: string
+          user_id?: string
+          version?: number
+        }
+        Relationships: []
+      }
+      ai_prompt_logs: {
+        Row: {
+          cost_estimate: number | null
+          created_at: string
+          error_message: string | null
+          execution_time_ms: number | null
+          id: string
+          input_hash: string | null
+          input_json: Json | null
+          lead_id: string | null
+          model: string
+          output_json: Json | null
+          persona_id: string | null
+          run_id: string | null
+          scope: string
+          search_id: string | null
+          tokens_in: number | null
+          tokens_out: number | null
+          user_id: string
+        }
+        Insert: {
+          cost_estimate?: number | null
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          input_hash?: string | null
+          input_json?: Json | null
+          lead_id?: string | null
+          model: string
+          output_json?: Json | null
+          persona_id?: string | null
+          run_id?: string | null
+          scope: string
+          search_id?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id: string
+        }
+        Update: {
+          cost_estimate?: number | null
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number | null
+          id?: string
+          input_hash?: string | null
+          input_json?: Json | null
+          lead_id?: string | null
+          model?: string
+          output_json?: Json | null
+          persona_id?: string | null
+          run_id?: string | null
+          scope?: string
+          search_id?: string | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_settings: {
+        Row: {
+          created_at: string
+          feature_flags: Json
+          id: string
+          limits: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feature_flags?: Json
+          id?: string
+          limits?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feature_flags?: Json
+          id?: string
+          limits?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       assignment_rules: {
         Row: {
           assign_to: string[]
@@ -211,6 +340,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      lead_scores: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          id: string
+          lead_id: string
+          model: string
+          rationale: string | null
+          score: number
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          lead_id: string
+          model: string
+          rationale?: string | null
+          score: number
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          lead_id?: string
+          model?: string
+          rationale?: string | null
+          score?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       leads: {
         Row: {

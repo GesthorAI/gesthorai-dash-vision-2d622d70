@@ -8,9 +8,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { ArrowLeft, ArrowRight, Play, Sparkles, Users, Filter, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Play, Sparkles, Users, Filter, MessageSquare, Send, Loader2 } from 'lucide-react';
 import { useLeads } from '@/hooks/useLeads';
 import { useMessageTemplates, useCreateFollowupRun, usePrepareFollowupRun, useSendFollowupMessages, useDispatchToN8n } from '@/hooks/useFollowups';
+import { useAIPersonas, useAISettings } from '@/hooks/useAIPersonas';
+import { useAIFollowup } from '@/hooks/useAIFollowup';
+import { toast } from 'sonner';
 
 interface FollowupFilters {
   niche?: string;
@@ -40,15 +43,16 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   const [useAI, setUseAI] = useState(false);
   const [useN8n, setUseN8n] = useState(false);
   const [currentRunId, setCurrentRunId] = useState<string>('');
+  const [selectedPersona, setSelectedPersona] = useState<string>('');
+  const [customInstructions, setCustomInstructions] = useState('');
+  const [aiGeneratedMessages, setAiGeneratedMessages] = useState<Array<{
+    message: string;
+    confidence: number;
+    selected?: boolean;
+  }>>([]);
   const [personaConfig, setPersonaConfig] = useState<PersonaConfig>({
     name: 'Milene',
-    systemPrompt: `<quem_voce_e>
-Você é um copywriter sênior especializado em marketing conversacional e vendas consultivas, com 10+ anos de experiência em comunicação persuasiva. Sua personalidade combina expertise técnica com abordagem humanizada — você é estratégico como um consultor de negócios, empático como um psicólogo e persuasivo como um vendedor top performer. Você entende profundamente como despertar curiosidade genuína e construir conexões através de mensagens personalizadas.
-</quem_voce_e>
-
-<seu_objetivo>
-Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleçam conexão imediata com prospects qualificados, despertem curiosidade sobre estratégias para atrair mais clientes e aumentar faturamento, gerem alta taxa de resposta através de personalização estratégica, posicionem o marketing digital e o fortalecimento da presença online como evolução natural do negócio, e iniciem conversas consultivas, não vendas agressivas.
-</seu_objetivo>`,
+    systemPrompt: `Você é um copywriter especializado em marketing conversacional e vendas consultivas. Crie mensagens WhatsApp personalizadas que estabeleçam conexão imediata com prospects qualificados e despertem curiosidade sobre estratégias para atrair mais clientes.`,
     useJinaAI: false,
     messageDelay: 3
   });
@@ -59,11 +63,23 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
   const prepareRun = usePrepareFollowupRun();
   const sendMessages = useSendFollowupMessages();
   const dispatchToN8n = useDispatchToN8n();
+  const { data: personas = [] } = useAIPersonas();
+  const { data: aiSettings } = useAISettings();
+  const generateAIFollowup = useAIFollowup();
+
+  // Type-safe feature flags access
+  const getFeatureFlag = (flag: string): boolean => {
+    return aiSettings?.feature_flags && 
+           typeof aiSettings.feature_flags === 'object' && 
+           aiSettings.feature_flags !== null &&
+           (aiSettings.feature_flags as any)[flag] === true;
+  };
 
   const filteredLeadsCount = leads?.length || 0;
 
   const handleNextStep = () => {
-    if (currentStep < 4) {
+    const maxStep = useAI ? 5 : 4;
+    if (currentStep < maxStep) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -71,6 +87,42 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
   const handlePrevStep = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleGenerateAI = async () => {
+    if (!leads?.length) {
+      toast.error("Nenhum lead encontrado para gerar mensagens");
+      return;
+    }
+
+    try {
+      const sampleLead = leads[0];
+      
+      const result = await generateAIFollowup.mutateAsync({
+        lead: {
+          name: sampleLead.name,
+          business: sampleLead.business,
+          niche: sampleLead.niche || undefined,
+          city: sampleLead.city,
+          phone: sampleLead.phone || undefined,
+          email: sampleLead.email || undefined,
+        },
+        persona_id: selectedPersona || undefined,
+        template_id: selectedTemplateId || undefined,
+        custom_instructions: customInstructions || undefined,
+        variations_count: 3,
+      });
+
+      setAiGeneratedMessages(result.variations.map((v, i) => ({
+        ...v,
+        selected: i === 0
+      })));
+
+      toast.success(`${result.variations.length} variações geradas com IA`);
+    } catch (error) {
+      console.error('Error generating AI messages:', error);
+      toast.error("Erro ao gerar mensagens com IA");
     }
   };
 
@@ -86,7 +138,7 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
       });
       
       setCurrentRunId(result.id);
-      setCurrentStep(3);
+      handleNextStep();
     } catch (error) {
       console.error('Error creating run:', error);
     }
@@ -96,8 +148,7 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
     if (!currentRunId) return;
 
     if (useN8n) {
-      // Skip preparation step for n8n, go directly to sending
-      setCurrentStep(4);
+      handleNextStep();
     } else {
       try {
         await prepareRun.mutateAsync({
@@ -107,7 +158,7 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
           generateWithAI: useAI,
           personaConfig: useAI ? personaConfig : undefined
         });
-        setCurrentStep(4);
+        handleNextStep();
       } catch (error) {
         console.error('Error preparing run:', error);
       }
@@ -281,66 +332,17 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
                   <Checkbox
                     id="useAI"
                     checked={useAI && !useN8n}
-                    disabled={useN8n}
+                    disabled={useN8n || !getFeatureFlag('followup_ai')}
                     onCheckedChange={(checked) => setUseAI(!!checked)}
                   />
-                  <Label htmlFor="useAI" className="flex items-center gap-2">
+                  <Label htmlFor="useAI" className={`flex items-center gap-2 ${!getFeatureFlag('followup_ai') ? 'text-muted-foreground' : ''}`}>
                     <Sparkles className="h-4 w-4" />
-                    Gerar 3 mensagens consultivas personalizadas
+                    Usar IA para gerar mensagens personalizadas
+                    {!getFeatureFlag('followup_ai') && (
+                      <span className="text-xs">(Desabilitado)</span>
+                    )}
                   </Label>
                 </div>
-
-                {useAI && !useN8n && (
-                  <Card className="p-4 bg-muted/20">
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="personaName">Nome da Persona</Label>
-                          <Input
-                            id="personaName"
-                            value={personaConfig.name}
-                            onChange={(e) => setPersonaConfig(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="Ex: Milene, João, etc."
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="messageDelay">Intervalo entre mensagens (seg)</Label>
-                          <Input
-                            id="messageDelay"
-                            type="number"
-                            value={personaConfig.messageDelay}
-                            onChange={(e) => setPersonaConfig(prev => ({ ...prev, messageDelay: parseInt(e.target.value) || 3 }))}
-                            placeholder="3"
-                            min="1"
-                            max="30"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <Label htmlFor="systemPrompt">Prompt do Sistema (Persona)</Label>
-                        <Textarea
-                          id="systemPrompt"
-                          value={personaConfig.systemPrompt}
-                          onChange={(e) => setPersonaConfig(prev => ({ ...prev, systemPrompt: e.target.value }))}
-                          placeholder="Defina como a IA deve se comportar..."
-                          className="min-h-[120px]"
-                        />
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="useJinaAI"
-                          checked={personaConfig.useJinaAI}
-                          onCheckedChange={(checked) => setPersonaConfig(prev => ({ ...prev, useJinaAI: !!checked }))}
-                        />
-                        <Label htmlFor="useJinaAI" className="text-sm">
-                          Usar Jina AI para análise do site do lead
-                        </Label>
-                      </div>
-                    </div>
-                  </Card>
-                )}
 
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -356,165 +358,255 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
                     Enviar via n8n (workflow externo)
                   </Label>
                 </div>
-
-                {useN8n && (
-                  <Card className="p-4 bg-muted/20">
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="n8nPersonaName">Nome da Persona (n8n)</Label>
-                          <Input
-                            id="n8nPersonaName"
-                            value={personaConfig.name}
-                            onChange={(e) => setPersonaConfig(prev => ({ ...prev, name: e.target.value }))}
-                            placeholder="Ex: Milene, João, etc."
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="n8nMessageDelay">Intervalo entre mensagens (seg)</Label>
-                          <Input
-                            id="n8nMessageDelay"
-                            type="number"
-                            value={personaConfig.messageDelay}
-                            onChange={(e) => setPersonaConfig(prev => ({ ...prev, messageDelay: parseInt(e.target.value) || 3 }))}
-                            placeholder="3"
-                            min="1"
-                            max="30"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="n8nUseJinaAI"
-                          checked={personaConfig.useJinaAI}
-                          onCheckedChange={(checked) => setPersonaConfig(prev => ({ ...prev, useJinaAI: !!checked }))}
-                        />
-                        <Label htmlFor="n8nUseJinaAI" className="text-sm">
-                          Usar Jina AI para análise do site (processado no n8n)
-                        </Label>
-                      </div>
-                    </div>
-                  </Card>
-                )}
               </div>
             </div>
           </div>
         );
 
       case 3:
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center gap-2 text-primary">
-              <Play className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Preparação</h3>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Resumo do Follow-up</CardTitle>
-                <CardDescription>Confirme os detalhes antes de preparar as mensagens</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label className="font-medium">Nome:</Label>
-                  <p className="text-sm text-muted-foreground">{runName}</p>
-                </div>
-                
-                <div>
-                  <Label className="font-medium">Total de leads:</Label>
-                  <p className="text-sm text-muted-foreground">{filteredLeadsCount}</p>
-                </div>
-
-                <div>
-                  <Label className="font-medium">Template:</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {templates?.find(t => t.id === selectedTemplateId)?.name}
-                  </p>
-                </div>
-
-                <div>
-                  <Label className="font-medium">Método de envio:</Label>
-                  <p className="text-sm text-muted-foreground">
-                    {useN8n ? 'Via n8n workflow' : useAI ? 'Direto com IA' : 'Direto simples'}
-                  </p>
-                </div>
-
-                <Separator />
-
-                <Button 
-                  onClick={handlePrepareRun}
-                  disabled={prepareRun.isPending}
-                  className="w-full"
-                >
-                  {prepareRun.isPending ? 'Preparando...' : (useN8n ? 'Prosseguir para Envio' : 'Preparar Mensagens')}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        );
-
+        return useAI ? renderAIConfigStep() : renderReviewStep();
+      
       case 4:
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center gap-2 text-primary">
-              <Send className="h-5 w-5" />
-              <h3 className="text-lg font-semibold">Envio</h3>
-            </div>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Pronto para Enviar</CardTitle>
-                <CardDescription>
-                  {useN8n 
-                    ? 'O follow-up será processado pelo seu workflow n8n'
-                    : 'As mensagens foram preparadas e estão prontas para envio'
-                  }
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-2">
-                    {useN8n ? 'Configuração n8n:' : 'Configuração de Envio:'}
-                  </h4>
-                  <ul className="text-sm text-muted-foreground space-y-1">
-                    {useN8n ? (
-                      <>
-                        <li>• Processamento via workflow n8n</li>
-                        <li>• Controle avançado de timing e personalização</li>
-                        <li>• Rastreamento automático via webhooks</li>
-                        <li>• Logs detalhados no n8n</li>
-                      </>
-                    ) : (
-                      <>
-                        <li>• Lotes de 10 mensagens</li>
-                        <li>• Intervalo de 2 segundos entre mensagens</li>
-                        <li>• Monitoramento automático de falhas</li>
-                      </>
-                    )}
-                  </ul>
-                </div>
-
-                <Button 
-                  onClick={handleSendMessages}
-                  disabled={sendMessages.isPending || dispatchToN8n.isPending}
-                  className="w-full"
-                  size="lg"
-                >
-                  {(sendMessages.isPending || dispatchToN8n.isPending) 
-                    ? (useN8n ? 'Enviando ao n8n...' : 'Enviando...')
-                    : (useN8n ? 'Enviar ao n8n' : 'Iniciar Envio')
-                  }
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        );
+        return useAI ? renderReviewStep() : renderExecutionStep();
+        
+      case 5:
+        return renderExecutionStep();
 
       default:
         return null;
     }
   };
+
+  const renderAIConfigStep = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 text-primary">
+        <Sparkles className="h-5 w-5" />
+        <h3 className="text-lg font-semibold">Configuração da IA</h3>
+      </div>
+      
+      <div className="space-y-4">
+        <div>
+          <Label htmlFor="aiPersonaConfig">Persona de IA</Label>
+          <Select value={selectedPersona} onValueChange={setSelectedPersona}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecionar persona..." />
+            </SelectTrigger>
+            <SelectContent>
+              {personas.map((persona) => (
+                <SelectItem key={persona.id} value={persona.id}>
+                  {persona.name} - {persona.tone}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {selectedPersona && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {personas.find(p => p.id === selectedPersona)?.description}
+            </p>
+          )}
+        </div>
+
+        <div>
+          <Label htmlFor="customInstructionsConfig">Instruções Personalizadas</Label>
+          <Textarea
+            id="customInstructionsConfig"
+            value={customInstructions}
+            onChange={(e) => setCustomInstructions(e.target.value)}
+            placeholder="Ex: Mencionar uma promoção especial, focar em economia de custos, usar tom mais urgente..."
+            className="min-h-[100px]"
+          />
+        </div>
+
+        <div className="bg-muted p-4 rounded-md">
+          <h4 className="font-medium mb-2">Gerar Prévia</h4>
+          <Button
+            onClick={handleGenerateAI}
+            disabled={generateAIFollowup.isPending || !leads?.length}
+            className="w-full"
+          >
+            {generateAIFollowup.isPending ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Gerando mensagens...
+              </>
+            ) : (
+              'Gerar 3 Variações com IA'
+            )}
+          </Button>
+        </div>
+
+        {aiGeneratedMessages.length > 0 && (
+          <div className="space-y-3">
+            <h4 className="font-medium">Variações Geradas - Selecione uma:</h4>
+            {aiGeneratedMessages.map((msg, index) => (
+              <div
+                key={index}
+                className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                  msg.selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                }`}
+                onClick={() => {
+                  setAiGeneratedMessages(prev => 
+                    prev.map((m, i) => ({ ...m, selected: i === index }))
+                  );
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <p className="text-sm flex-1">{msg.message}</p>
+                  <div className="ml-2 text-xs text-muted-foreground">
+                    Confiança: {Math.round(msg.confidence * 100)}%
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderReviewStep = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 text-primary">
+        <Play className="h-5 w-5" />
+        <h3 className="text-lg font-semibold">Revisão</h3>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Resumo do Follow-up</CardTitle>
+          <CardDescription>Confirme os detalhes antes de preparar as mensagens</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="font-medium">Nome:</Label>
+            <p className="text-sm text-muted-foreground">{runName}</p>
+          </div>
+          
+          <div>
+            <Label className="font-medium">Total de leads:</Label>
+            <p className="text-sm text-muted-foreground">{filteredLeadsCount}</p>
+          </div>
+
+          <div>
+            <Label className="font-medium">Template:</Label>
+            <p className="text-sm text-muted-foreground">
+              {templates?.find(t => t.id === selectedTemplateId)?.name}
+            </p>
+          </div>
+
+          <div>
+            <Label className="font-medium">Método de envio:</Label>
+            <p className="text-sm text-muted-foreground">
+              {useN8n ? 'Via n8n workflow' : useAI ? 'Direto com IA' : 'Direto simples'}
+            </p>
+          </div>
+
+          {useAI && aiGeneratedMessages.some(m => m.selected) && (
+            <div>
+              <Label className="font-medium">Mensagem selecionada:</Label>
+              <div className="mt-2 p-3 bg-muted rounded-md">
+                <p className="text-sm">
+                  {aiGeneratedMessages.find(m => m.selected)?.message}
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const renderExecutionStep = () => (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 text-primary">
+        <Send className="h-5 w-5" />
+        <h3 className="text-lg font-semibold">Envio</h3>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Pronto para Enviar</CardTitle>
+          <CardDescription>
+            {useN8n 
+              ? 'O follow-up será processado pelo seu workflow n8n'
+              : 'As mensagens foram preparadas e estão prontas para envio'
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-muted/50 p-4 rounded-lg">
+            <h4 className="font-medium mb-2">
+              {useN8n ? 'Configuração n8n:' : 'Configuração de Envio:'}
+            </h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              {useN8n ? (
+                <>
+                  <li>• Processamento via workflow n8n</li>
+                  <li>• Controle avançado de timing e personalização</li>
+                  <li>• Rastreamento automático via webhooks</li>
+                  <li>• Logs detalhados no n8n</li>
+                </>
+              ) : (
+                <>
+                  <li>• Lotes de 10 mensagens</li>
+                  <li>• Intervalo de {personaConfig.messageDelay} segundos entre mensagens</li>
+                  <li>• Monitoramento automático de falhas</li>
+                  {useAI && <li>• Mensagens personalizadas com IA</li>}
+                </>
+              )}
+            </ul>
+          </div>
+
+          <Button 
+            onClick={handleSendMessages}
+            disabled={sendMessages.isPending || dispatchToN8n.isPending}
+            className="w-full"
+            size="lg"
+          >
+            {(sendMessages.isPending || dispatchToN8n.isPending) 
+              ? (useN8n ? 'Enviando ao n8n...' : 'Enviando...')
+              : (useN8n ? 'Enviar ao n8n' : 'Iniciar Envio')
+            }
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const isNextDisabled = () => {
+    switch (currentStep) {
+      case 1:
+        return !runName || filteredLeadsCount === 0;
+      case 2:
+        return !selectedTemplateId;
+      case 3:
+        if (useAI) {
+          return !aiGeneratedMessages.some(m => m.selected);
+        }
+        return false;
+      default:
+        return false;
+    }
+  };
+
+  const getStepTitle = () => {
+    switch (currentStep) {
+      case 1:
+        return "Filtros";
+      case 2:
+        return "Template";
+      case 3:
+        return useAI ? "IA" : "Revisão";
+      case 4:
+        return useAI ? "Revisão" : "Envio";
+      case 5:
+        return "Envio";
+      default:
+        return `Passo ${currentStep}`;
+    }
+  };
+
+  const maxSteps = useAI ? 5 : 4;
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
@@ -524,31 +616,19 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
           Crie e envie follow-ups personalizados para seus leads
         </CardDescription>
         
-        {/* Step indicator */}
-        <div className="flex items-center justify-between pt-4">
-          {[1, 2, 3, 4].map((step) => (
-            <div key={step} className="flex items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step <= currentStep 
-                  ? 'bg-primary text-primary-foreground' 
-                  : 'bg-muted text-muted-foreground'
-              }`}>
-                {step}
-              </div>
-              {step < 4 && (
-                <div className={`w-12 h-0.5 mx-2 ${
-                  step < currentStep ? 'bg-primary' : 'bg-muted'
-                }`} />
-              )}
+        <div className="flex items-center space-x-2 mb-6">
+          {Array.from({ length: maxSteps }, (_, i) => i + 1).map((step) => (
+            <div
+              key={step}
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                step <= currentStep
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {step}
             </div>
           ))}
-        </div>
-        
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Filtros</span>
-          <span>Template</span>
-          <span>Preparar</span>
-          <span>Enviar</span>
         </div>
       </CardHeader>
 
@@ -556,34 +636,73 @@ Criar sequências de mensagens WhatsApp altamente personalizadas que estabeleça
         {renderStepContent()}
 
         <div className="flex justify-between pt-6 border-t mt-6">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={currentStep === 1 ? onClose : handlePrevStep}
-            disabled={createRun.isPending || prepareRun.isPending || sendMessages.isPending}
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            {currentStep === 1 ? 'Cancelar' : 'Voltar'}
+            {currentStep === 1 ? "Cancelar" : "Voltar"}
           </Button>
-
-          {currentStep < 2 && (
-            <Button 
-              onClick={handleNextStep}
-              disabled={!runName || filteredLeadsCount === 0}
-            >
-              Próximo
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          )}
-
-          {currentStep === 2 && (
-            <Button 
-              onClick={handleCreateRun}
-              disabled={!selectedTemplateId || createRun.isPending}
-            >
-              {createRun.isPending ? 'Criando...' : 'Criar Follow-up'}
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          )}
+          
+          {(() => {
+            const reviewStep = useAI ? 4 : 3;
+            const executionStep = useAI ? 5 : 4;
+            
+            if (currentStep < reviewStep) {
+              return (
+                <Button onClick={handleNextStep} disabled={isNextDisabled()}>
+                  Próximo
+                </Button>
+              );
+            } else if (currentStep === reviewStep && !currentRunId) {
+              return (
+                <Button
+                  onClick={handleCreateRun}
+                  disabled={createRun.isPending}
+                >
+                  {createRun.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    "Criar Campanha"
+                  )}
+                </Button>
+              );
+            } else if (currentStep === executionStep && currentRunId) {
+              return (
+                <Button
+                  onClick={handlePrepareRun}
+                  disabled={prepareRun.isPending}
+                >
+                  {prepareRun.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Preparando...
+                    </>
+                  ) : (
+                    "Preparar Mensagens"
+                  )}
+                </Button>
+              );
+            } else {
+              return (
+                <Button
+                  onClick={handleSendMessages}
+                  disabled={sendMessages.isPending}
+                >
+                  {sendMessages.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    "Enviar Mensagens"
+                  )}
+                </Button>
+              );
+            }
+          })()}
         </div>
       </CardContent>
     </Card>
