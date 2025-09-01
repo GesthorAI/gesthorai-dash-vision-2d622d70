@@ -22,13 +22,19 @@ import {
   ExternalLink,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  Eye,
+  EyeOff,
+  Save,
+  AlertTriangle
 } from "lucide-react";
 import { useAISettings } from "@/hooks/useAIPersonas";
 import { useUpdateAISettings, useAISecretStatus, useAISmoketest } from "@/hooks/useUpdateAISettings";
 import { useAIPersonas, useCreatePersona, useUpdatePersona, AIPersona } from "@/hooks/useAIPersonas";
+import { useUserAPIKeyStatus, useSaveUserAPIKey, useRemoveUserAPIKey } from "@/hooks/useUserAPIKeys";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const AVAILABLE_MODELS = [
   { value: "gpt-5-2025-08-07", label: "GPT-5 (Mais Avançado)" },
@@ -50,10 +56,13 @@ export const AISettings = () => {
   const [editingPersona, setEditingPersona] = useState<AIPersona | null>(null);
   const [secretStatus, setSecretStatus] = useState<any>(null);
   const [smoketestResult, setSmoketestResult] = useState<any>(null);
+  const [userApiKey, setUserApiKey] = useState("");
+  const [showApiKey, setShowApiKey] = useState(false);
 
   // Queries
   const { data: aiSettings, isLoading: settingsLoading } = useAISettings();
   const { data: personas = [], isLoading: personasLoading } = useAIPersonas();
+  const { data: keyStatus, isLoading: keyStatusLoading } = useUserAPIKeyStatus();
   
   // Mutations
   const updateSettings = useUpdateAISettings();
@@ -61,6 +70,8 @@ export const AISettings = () => {
   const runSmoketest = useAISmoketest();
   const createPersona = useCreatePersona();
   const updatePersona = useUpdatePersona();
+  const saveUserAPIKey = useSaveUserAPIKey();
+  const removeUserAPIKey = useRemoveUserAPIKey();
 
   const handleCheckSecretStatus = async () => {
     try {
@@ -92,6 +103,48 @@ export const AISettings = () => {
       toast({
         title: "Erro no teste",
         description: "Não foi possível testar a conexão",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSaveUserAPIKey = async () => {
+    if (!userApiKey.trim()) {
+      toast({
+        title: "Erro",
+        description: "Por favor, insira uma chave API válida",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await saveUserAPIKey.mutateAsync({ apiKey: userApiKey });
+      setUserApiKey("");
+      toast({
+        title: "Chave salva",
+        description: "Sua chave OpenAI foi salva com sucesso",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar chave",
+        description: error.message || "Não foi possível salvar a chave API",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveUserAPIKey = async () => {
+    try {
+      await removeUserAPIKey.mutateAsync();
+      toast({
+        title: "Chave removida",
+        description: "Sua chave OpenAI foi removida com sucesso",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao remover chave",
+        description: error.message || "Não foi possível remover a chave API",
         variant: "destructive",
       });
     }
@@ -167,15 +220,135 @@ export const AISettings = () => {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Provider & API Key Status */}
+        {/* API Key Management */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Key className="h-5 w-5" />
-              Provedor e Chave API
+              Gerenciar Chave API
             </CardTitle>
             <CardDescription>
-              Status da chave OpenAI e teste de conexão
+              Configure sua chave OpenAI pessoal para uso personalizado
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {keyStatusLoading ? (
+              <div className="flex justify-center p-4">
+                <Loader2 className="h-6 w-6 animate-spin" />
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status Atual:</span>
+                  {keyStatus?.hasAnyOpenAIKey ? (
+                    <Badge variant="default" className="flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      {keyStatus.priority === 'user' ? 'Chave Pessoal' : 'Chave do Sistema'}
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive" className="flex items-center gap-1">
+                      <XCircle className="h-3 w-3" />
+                      Não Configurado
+                    </Badge>
+                  )}
+                </div>
+
+                {keyStatus?.message && (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>{keyStatus.message}</AlertDescription>
+                  </Alert>
+                )}
+
+                {keyStatus?.hasUserOpenAIKey && keyStatus.userKeyInfo && (
+                  <div className="text-xs text-muted-foreground">
+                    Última atualização: {new Date(keyStatus.userKeyInfo.updated_at).toLocaleString('pt-BR')}
+                  </div>
+                )}
+
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="user-api-key">Sua Chave OpenAI</Label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          id="user-api-key"
+                          type={showApiKey ? "text" : "password"}
+                          value={userApiKey}
+                          onChange={(e) => setUserApiKey(e.target.value)}
+                          placeholder="sk-..."
+                          className="pr-10"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-0 top-0 h-full px-2"
+                          onClick={() => setShowApiKey(!showApiKey)}
+                        >
+                          {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                      </div>
+                      <Button
+                        onClick={handleSaveUserAPIKey}
+                        disabled={saveUserAPIKey.isPending || !userApiKey.trim()}
+                        size="sm"
+                      >
+                        {saveUserAPIKey.isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Sua chave será criptografada e armazenada com segurança
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    {keyStatus?.hasUserOpenAIKey && (
+                      <Button
+                        onClick={handleRemoveUserAPIKey}
+                        disabled={removeUserAPIKey.isPending}
+                        variant="destructive"
+                        size="sm"
+                        className="flex-1"
+                      >
+                        {removeUserAPIKey.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4 mr-2" />
+                        )}
+                        Remover Chave
+                      </Button>
+                    )}
+                    
+                    <Button 
+                      onClick={() => window.open('https://platform.openai.com/api-keys', '_blank')}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                    >
+                      <ExternalLink className="h-4 w-4 mr-2" />
+                      Obter Chave OpenAI
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Provider & API Key Status */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TestTube className="h-5 w-5" />
+              Teste de Conexão
+            </CardTitle>
+            <CardDescription>
+              Verifique o status e teste a conexão com a API
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -231,7 +404,7 @@ export const AISettings = () => {
               
               <Button 
                 onClick={handleSmoketest}
-                disabled={runSmoketest.isPending || !secretStatus?.hasOpenAIKey}
+                disabled={runSmoketest.isPending || (!keyStatus?.hasAnyOpenAIKey && !secretStatus?.hasOpenAIKey)}
                 variant="outline"
                 className="flex-1"
               >
@@ -243,15 +416,6 @@ export const AISettings = () => {
                 Testar Conexão
               </Button>
             </div>
-
-            <Button 
-              onClick={() => window.open(`https://supabase.com/dashboard/project/xpgazdzcbtjqivbsunvh/settings/functions`, '_blank')}
-              variant="ghost"
-              className="w-full"
-            >
-              <ExternalLink className="h-4 w-4 mr-2" />
-              Atualizar Chave no Supabase
-            </Button>
           </CardContent>
         </Card>
 

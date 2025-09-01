@@ -1,3 +1,4 @@
+
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -6,6 +7,29 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Função para descriptografar a chave API
+async function decryptApiKey(cipher: string, iv: string, encryptionKey: string): Promise<string> {
+  const keyBytes = new TextEncoder().encode(encryptionKey.slice(0, 32));
+  const cipherBytes = new Uint8Array(atob(cipher).split('').map(c => c.charCodeAt(0)));
+  const ivBytes = new Uint8Array(atob(iv).split('').map(c => c.charCodeAt(0)));
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyBytes,
+    { name: 'AES-GCM' },
+    false,
+    ['decrypt']
+  );
+  
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: ivBytes },
+    cryptoKey,
+    cipherBytes
+  );
+  
+  return new TextDecoder().decode(decrypted);
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -34,12 +58,44 @@ serve(async (req) => {
       throw new Error('Authentication failed');
     }
 
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OpenAI API key not configured');
+    let openAIApiKey: string | null = null;
+    let keySource = 'none';
+
+    // 1. Primeiro, tentar buscar chave do usuário
+    try {
+      const { data: userKey, error: keyError } = await supabase
+        .from('ai_api_keys')
+        .select('key_cipher, iv')
+        .eq('user_id', user.id)
+        .eq('provider', 'openai')
+        .single();
+
+      if (!keyError && userKey) {
+        const encryptionKey = Deno.env.get('AI_ENCRYPTION_KEY');
+        if (encryptionKey) {
+          openAIApiKey = await decryptApiKey(userKey.key_cipher, userKey.iv, encryptionKey);
+          keySource = 'user';
+          console.log(`Using user's personal OpenAI key for user ${user.id}`);
+        }
+      }
+    } catch (error) {
+      console.log('No user key found, falling back to system key');
     }
 
-    console.log(`AI Smoke test initiated for user ${user.id}`);
+    // 2. Se não houver chave do usuário, usar chave do sistema
+    if (!openAIApiKey) {
+      openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+      if (openAIApiKey) {
+        keySource = 'system';
+        console.log(`Using system OpenAI key for user ${user.id}`);
+      }
+    }
+
+    if (!openAIApiKey) {
+      throw new Error('Nenhuma chave OpenAI configurada');
+    }
+
+    console.log(`AI Smoke test initiated for user ${user.id} using ${keySource} key`);
 
     const startTime = Date.now();
 
@@ -65,18 +121,18 @@ serve(async (req) => {
         scope: 'admin:smoketest',
         model: 'api-test',
         execution_time_ms: latency,
-        error_message: `API test failed: ${response.status} - ${errorText}`,
-        input_json: { test: 'connection' },
-        output_json: { error: errorText, status: response.status }
+        error_message: `API test failed (${keySource} key): ${response.status} - ${errorText}`,
+        input_json: { test: 'connection', keySource },
+        output_json: { error: errorText, status: response.status, keySource }
       });
 
-      throw new Error(`API test failed: ${response.status}`);
+      throw new Error(`Teste de API falhou: ${response.status}`);
     }
 
     const data = await response.json();
     const success = response.ok && data.data && Array.isArray(data.data);
 
-    console.log(`AI Smoke test completed for user ${user.id}: ${success ? 'SUCCESS' : 'FAILED'} (${latency}ms)`);
+    console.log(`AI Smoke test completed for user ${user.id}: ${success ? 'SUCCESS' : 'FAILED'} (${latency}ms) using ${keySource} key`);
 
     // Log successful test
     await supabase.from('ai_prompt_logs').insert({
@@ -84,11 +140,12 @@ serve(async (req) => {
       scope: 'admin:smoketest',
       model: 'api-test',
       execution_time_ms: latency,
-      input_json: { test: 'connection' },
+      input_json: { test: 'connection', keySource },
       output_json: { 
         success: true, 
         latency,
-        models_count: data.data?.length || 0 
+        models_count: data.data?.length || 0,
+        keySource
       }
     });
 
@@ -96,8 +153,9 @@ serve(async (req) => {
       success: true,
       latency,
       status: 'connected',
-      message: `Conexão OK (${latency}ms)`,
-      models_available: data.data?.length || 0
+      message: `Conexão OK (${latency}ms) - ${keySource === 'user' ? 'chave pessoal' : 'chave do sistema'}`,
+      models_available: data.data?.length || 0,
+      keySource
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
