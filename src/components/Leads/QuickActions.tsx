@@ -227,7 +227,7 @@ export const QuickActions = ({ lead, onLeadUpdate, compact = false }: QuickActio
                   E-mail
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+               <DialogContent aria-describedby={undefined}>
                 <DialogHeader>
                   <DialogTitle>Enviar E-mail</DialogTitle>
                 </DialogHeader>
@@ -304,7 +304,7 @@ export const QuickActions = ({ lead, onLeadUpdate, compact = false }: QuickActio
                 Qualificar
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent aria-describedby={undefined}>
               <DialogHeader>
                 <DialogTitle>Qualificar Lead</DialogTitle>
               </DialogHeader>

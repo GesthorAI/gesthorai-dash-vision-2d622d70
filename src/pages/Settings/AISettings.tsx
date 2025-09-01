@@ -509,7 +509,7 @@ const PersonaDialog = ({ persona, onSave, onCancel }: PersonaDialogProps) => {
   };
 
   return (
-    <DialogContent className="max-w-2xl">
+    <DialogContent aria-describedby={undefined} className="max-w-2xl">
       <DialogHeader>
         <DialogTitle>
           {persona ? "Editar Persona" : "Nova Persona"}

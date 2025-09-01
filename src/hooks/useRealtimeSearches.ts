@@ -7,7 +7,9 @@ export const useRealtimeSearches = () => {
   const { refetch } = useSearches();
 
   useEffect(() => {
-    console.log('Setting up realtime subscription for searches');
+    if (import.meta.env.DEV) {
+      console.log('Setting up realtime subscription for searches');
+    }
     
     const channel = supabase
       .channel('searches-changes')
@@ -19,18 +21,24 @@ export const useRealtimeSearches = () => {
           table: 'searches'
         },
         (payload) => {
-          console.log('Search update received:', payload);
+          if (import.meta.env.DEV) {
+            console.log('Search update received:', payload);
+          }
           // Refetch searches when any change occurs
           refetch();
         }
       )
       .subscribe((status) => {
-        console.log('Searches subscription status:', status);
+        if (import.meta.env.DEV) {
+          console.log('Searches subscription status:', status);
+        }
         setIsConnected(status === 'SUBSCRIBED');
       });
 
     return () => {
-      console.log('Cleaning up searches realtime subscription');
+      if (import.meta.env.DEV) {
+        console.log('Cleaning up searches realtime subscription');
+      }
       supabase.removeChannel(channel);
     };
   }, [refetch]);

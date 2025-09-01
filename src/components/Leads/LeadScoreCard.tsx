@@ -121,7 +121,7 @@ export const LeadScoreCard = ({
                 Configurar Pesos
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-md">
+            <DialogContent aria-describedby={undefined} className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Configurar Pesos do Scoring</DialogTitle>
               </DialogHeader>

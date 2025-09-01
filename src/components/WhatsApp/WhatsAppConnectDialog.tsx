@@ -231,7 +231,7 @@ export const WhatsAppConnectDialog = () => {
         </Button>
       </DialogTrigger>
       
-      <DialogContent className="max-w-md">
+      <DialogContent aria-describedby={undefined} className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Smartphone className="w-5 h-5" />

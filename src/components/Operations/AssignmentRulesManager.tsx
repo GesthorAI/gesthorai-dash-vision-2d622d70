@@ -271,7 +271,7 @@ export const AssignmentRulesManager = ({ rules, onRulesChange }: AssignmentRules
 
       {/* Create Rule Dialog */}
       <Dialog open={showCreateRule} onOpenChange={setShowCreateRule}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent aria-describedby={undefined} className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nova Regra de Atribuição</DialogTitle>
           </DialogHeader>

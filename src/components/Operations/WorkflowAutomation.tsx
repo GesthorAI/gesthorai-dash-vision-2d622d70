@@ -355,7 +355,7 @@ export const WorkflowAutomation = () => {
 
       {/* Workflow Creator Dialog */}
       <Dialog open={showNewWorkflow} onOpenChange={setShowNewWorkflow}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent aria-describedby={undefined} className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo Workflow</DialogTitle>
           </DialogHeader>
