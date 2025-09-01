@@ -168,6 +168,74 @@ export const useCreateTemplate = () => {
   });
 };
 
+// Hook for updating templates
+export const useUpdateTemplate = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ id, template }: { 
+      id: string; 
+      template: Partial<Omit<MessageTemplate, 'id' | 'user_id' | 'created_at' | 'updated_at'>> 
+    }) => {
+      const { data, error } = await supabase
+        .from('message_templates')
+        .update(template)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['message-templates'] });
+      toast({
+        title: 'Template atualizado',
+        description: 'Template de mensagem atualizado com sucesso!',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro',
+        description: `Falha ao atualizar template: ${error.message}`,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
+// Hook for deleting templates
+export const useDeleteTemplate = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('message_templates')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['message-templates'] });
+      toast({
+        title: 'Template excluído',
+        description: 'Template de mensagem excluído com sucesso!',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro',
+        description: `Falha ao excluir template: ${error.message}`,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
 // Hook for followup runs
 export const useFollowupRuns = () => {
   return useQuery({

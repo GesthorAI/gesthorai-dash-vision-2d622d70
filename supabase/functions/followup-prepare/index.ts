@@ -226,12 +226,34 @@ Substitua ${body.personaConfig.name} por seu nome na primeira mensagem. Limite t
           messages = [template.message.replace(/\{\{name\}\}/g, lead.name)];
         }
       } else {
-        // Use template with variable replacement
-        const message = template.message
-          .replace(/\{\{name\}\}/g, lead.name)
-          .replace(/\{\{business\}\}/g, lead.business)
-          .replace(/\{\{city\}\}/g, lead.city)
-          .replace(/\{\{niche\}\}/g, lead.niche);
+        // Use template with dynamic variable replacement
+        let message = template.message;
+        
+        // Replace all variables from template.variables array
+        template.variables?.forEach((variable: string) => {
+          const regex = new RegExp(`\\{\\{${variable}\\}\\}`, 'g');
+          const leadValue = (lead as any)[variable];
+          if (leadValue !== undefined && leadValue !== null) {
+            message = message.replace(regex, String(leadValue));
+          }
+        });
+        
+        // Fallback for common variables not in the variables array
+        const commonReplacements = {
+          name: lead.name || '',
+          business: lead.business || '',
+          city: lead.city || '',
+          niche: lead.niche || '',
+          phone: lead.phone || '',
+          email: lead.email || '',
+          score: String(lead.score || 0)
+        };
+        
+        Object.entries(commonReplacements).forEach(([key, value]) => {
+          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+          message = message.replace(regex, value);
+        });
+        
         messages = [message];
       }
 

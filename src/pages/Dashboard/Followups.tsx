@@ -16,7 +16,10 @@ import {
   Users,
   Send,
   Eye,
-  MoreVertical
+  MoreVertical,
+  Edit,
+  Copy,
+  Trash2
 } from 'lucide-react';
 import { FollowupWizard } from '@/components/Followups/FollowupWizard';
 import { 
@@ -24,21 +27,32 @@ import {
   useMessageTemplates, 
   useCreateDefaultTemplates,
   useFollowupRunItems,
-  useSendFollowupMessages
+  useSendFollowupMessages,
+  useCreateTemplate,
+  useUpdateTemplate,
+  useDeleteTemplate
 } from '@/hooks/useFollowups';
+import { TemplateForm } from '@/components/Followups/TemplateForm';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 export const Followups: React.FC = () => {
   const [showWizard, setShowWizard] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string>('');
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [deletingTemplate, setDeletingTemplate] = useState<string>('');
 
   const { data: runs, isLoading: runsLoading } = useFollowupRuns();
   const { data: templates } = useMessageTemplates();
   const { data: runItems } = useFollowupRunItems(selectedRunId);
   const createDefaultTemplates = useCreateDefaultTemplates();
   const sendMessages = useSendFollowupMessages();
+  const createTemplate = useCreateTemplate();
+  const updateTemplate = useUpdateTemplate();
+  const deleteTemplate = useDeleteTemplate();
 
   // Create default templates if none exist
   useEffect(() => {
@@ -77,6 +91,40 @@ export const Followups: React.FC = () => {
       });
     } catch (error) {
       console.error('Error continuing send:', error);
+    }
+  };
+
+  const handleTemplateSubmit = async (templateData: any) => {
+    if (editingTemplate) {
+      await updateTemplate.mutateAsync({
+        id: editingTemplate.id,
+        template: templateData
+      });
+    } else {
+      await createTemplate.mutateAsync(templateData);
+    }
+    setShowTemplateForm(false);
+    setEditingTemplate(null);
+  };
+
+  const handleEditTemplate = (template: any) => {
+    setEditingTemplate(template);
+    setShowTemplateForm(true);
+  };
+
+  const handleDuplicateTemplate = (template: any) => {
+    setEditingTemplate({
+      ...template,
+      name: `${template.name} (Cópia)`,
+      id: null
+    });
+    setShowTemplateForm(true);
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (deletingTemplate) {
+      await deleteTemplate.mutateAsync(deletingTemplate);
+      setDeletingTemplate('');
     }
   };
 
@@ -261,6 +309,14 @@ export const Followups: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="templates" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-semibold">Templates de Mensagem</h2>
+            <Button onClick={() => setShowTemplateForm(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Novo Template
+            </Button>
+          </div>
+
           {templates && templates.length > 0 ? (
             <div className="grid gap-4">
               {templates.map((template) => (
@@ -268,7 +324,34 @@ export const Followups: React.FC = () => {
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
                       {template.name}
-                      <Badge variant="outline">{template.category}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{template.category}</Badge>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuItem onClick={() => handleEditTemplate(template)}>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDuplicateTemplate(template)}>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Duplicar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => setDeletingTemplate(template.id)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -348,6 +431,50 @@ export const Followups: React.FC = () => {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Template Form Dialog */}
+      <Dialog open={showTemplateForm} onOpenChange={(open) => {
+        setShowTemplateForm(open);
+        if (!open) setEditingTemplate(null);
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>
+              {editingTemplate ? 'Editar Template' : 'Novo Template'}
+            </DialogTitle>
+          </DialogHeader>
+          <TemplateForm
+            template={editingTemplate}
+            onSubmit={handleTemplateSubmit}
+            onCancel={() => {
+              setShowTemplateForm(false);
+              setEditingTemplate(null);
+            }}
+            isLoading={createTemplate.isPending || updateTemplate.isPending}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingTemplate} onOpenChange={() => setDeletingTemplate('')}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este template? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteTemplate}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
