@@ -10,7 +10,9 @@ import { QuickActions } from "@/components/Leads/QuickActions";
 import { ScoreDistributionChart } from "@/components/Charts/ScoreDistributionChart";
 import { useLeads } from "@/hooks/useLeads";
 import { useLeadScoring } from "@/hooks/useLeadScoring";
-import { Star, TrendingUp, Users, Target, Filter, Search } from "lucide-react";
+import { useGenerateAIScores, useCheckStaleScores } from "@/hooks/useAILeadScoring";
+import { Star, TrendingUp, Users, Target, Filter, Search, Brain, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
 export const Quality = () => {
   const { data: leads = [], refetch } = useLeads();
@@ -19,6 +21,51 @@ export const Quality = () => {
   const [scoreFilter, setScoreFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedLead, setSelectedLead] = useState<any>(null);
+
+  // AI scoring functionality
+  const generateAIScores = useGenerateAIScores();
+  const { data: staleScoresInfo } = useCheckStaleScores();
+  
+  const handleGenerateAIScores = async () => {
+    if (!scoredLeads.length) {
+      toast.error("Nenhum lead encontrado para análise");
+      return;
+    }
+
+    try {
+      // Get leads that need scoring (without recent AI scores)
+      const leadsNeedingScoring = scoredLeads
+        .filter(lead => (lead as any).scoreSource === 'heuristic')
+        .slice(0, 50) // Limit to 50 leads per batch
+        .map(lead => ({
+          id: lead.id,
+          name: lead.name,
+          business: lead.business,
+          niche: lead.niche,
+          city: lead.city,
+          phone: lead.phone,
+          email: lead.email,
+          status: lead.status,
+          source: lead.source,
+          created_at: lead.created_at
+        }));
+
+      if (leadsNeedingScoring.length === 0) {
+        toast.info("Todos os leads já possuem scores recentes de IA");
+        return;
+      }
+
+      await generateAIScores.mutateAsync({
+        leads: leadsNeedingScoring,
+        batch_mode: true
+      });
+
+      toast.success(`${leadsNeedingScoring.length} leads analisados com IA`);
+    } catch (error) {
+      console.error('Error generating AI scores:', error);
+      toast.error("Erro ao gerar scores com IA");
+    }
+  };
 
   // Filter leads based on search and filters
   const filteredLeads = scoredLeads.filter(lead => {
@@ -46,11 +93,39 @@ export const Quality = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Qualidade dos Leads</h1>
-        <p className="text-muted-foreground">
-          Analise e gerencie a qualidade dos seus leads com scoring inteligente
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Qualidade dos Leads</h1>
+          <p className="text-muted-foreground">
+            Analise e gerencie a qualidade dos seus leads com scoring inteligente
+          </p>
+        </div>
+        
+        {staleScoresInfo && staleScoresInfo.stale_count > 0 && (
+          <div className="flex items-center gap-2">
+            <div className="text-sm text-muted-foreground">
+              {staleScoresInfo.stale_count} leads precisam de análise de IA
+            </div>
+            <Button
+              onClick={handleGenerateAIScores}
+              disabled={generateAIScores.isPending}
+              variant="outline"
+              size="sm"
+            >
+              {generateAIScores.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Analisando...
+                </>
+              ) : (
+                <>
+                  <Brain className="w-4 h-4 mr-2" />
+                  Analisar com IA
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Quality Overview */}
@@ -60,13 +135,19 @@ export const Quality = () => {
             <Star className="h-4 w-4 text-yellow-500" />
             <span className="text-sm font-medium">Score Médio</span>
           </div>
-          <div className="text-2xl font-bold">
-            {scoringStats?.avgScore.toFixed(1) || "0.0"}
+          <div className="flex items-baseline gap-2">
+            <div className="text-2xl font-bold">
+              {scoringStats?.avgScore.toFixed(1) || "0.0"}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              / 10.0
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-sm text-green-600">
-            <TrendingUp className="h-3 w-3" />
-            Score de {scoringStats?.minScore || 0} a {scoringStats?.maxScore || 0}
-          </div>
+          {scoringStats && scoringStats.aiCoverage > 0 && (
+            <div className="text-xs text-muted-foreground mt-1">
+              {Math.round(scoringStats.aiCoverage)}% analisados com IA
+            </div>
+          )}
         </Card>
         
         <Card className="p-4">

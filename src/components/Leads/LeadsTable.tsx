@@ -17,6 +17,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { AIScoreIndicator } from "./AIScoreIndicator";
 
 interface LeadsTableProps {
   leads: Lead[];
@@ -297,15 +298,14 @@ export const LeadsTable = ({ leads, onLeadsChange, showActions = true }: LeadsTa
                   </TableCell>
                   
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Star className={`h-4 w-4 ${getScoreColor(lead.score)}`} />
-                      <span className={`font-semibold ${getScoreColor(lead.score)}`}>
-                        {lead.score}
-                      </span>
-                      <Badge variant={scoreBadge.variant} className="text-xs">
-                        {scoreBadge.label}
-                      </Badge>
-                    </div>
+                    <AIScoreIndicator
+                      score={lead.score}
+                      scoreSource={(lead as any).scoreSource || 'heuristic'}
+                      aiRationale={(lead as any).aiRationale}
+                      aiConfidence={(lead as any).aiConfidence}
+                      aiModel={(lead as any).aiModel}
+                      aiScoredAt={(lead as any).aiScoredAt}
+                    />
                   </TableCell>
                   
                   <TableCell>

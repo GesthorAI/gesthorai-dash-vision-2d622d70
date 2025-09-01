@@ -18,6 +18,7 @@ import { useLeadScoring } from "@/hooks/useLeadScoring";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { AIScoreIndicator } from "@/components/Leads/AIScoreIndicator";
 import { AdvancedSearchForm } from "@/components/Search/AdvancedSearchForm";
 import { LeadCaptureForm } from "@/components/Search/LeadCaptureForm";
 import { ImportExportPanel } from "@/components/Search/ImportExportPanel";
@@ -309,9 +310,14 @@ export const LeadSearch = () => {
                     <TableCell>{lead.business}</TableCell>
                     <TableCell>{lead.city}</TableCell>
                     <TableCell>
-                      <Badge variant={lead.score >= 7 ? "default" : lead.score >= 4 ? "secondary" : "destructive"}>
-                        {lead.score}
-                      </Badge>
+                      <AIScoreIndicator
+                        score={lead.score || 0}
+                        scoreSource={(lead as any).scoreSource || 'heuristic'}
+                        aiRationale={(lead as any).aiRationale}
+                        aiConfidence={(lead as any).aiConfidence}
+                        aiModel={(lead as any).aiModel}
+                        aiScoredAt={(lead as any).aiScoredAt}
+                      />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {format(new Date(lead.created_at), 'HH:mm', { locale: ptBR })}

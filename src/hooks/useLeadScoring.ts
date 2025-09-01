@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Lead } from './useLeads';
+import { useAILeadScores } from './useAILeadScoring';
 
 export interface ScoringCriteria {
   hasPhone: number;
@@ -85,28 +86,74 @@ const SOURCE_SCORES: Record<string, number> = {
 
 export const useLeadScoring = (leads: Lead[], customWeights?: Partial<ScoringWeights>) => {
   const weights = { ...DEFAULT_WEIGHTS, ...customWeights };
+  
+  // Get AI scores for all leads
+  const leadIds = leads.map(lead => lead.id);
+  const { data: aiScores = [] } = useAILeadScores(leadIds);
+  
+  // Create a map for quick AI score lookup
+  const aiScoreMap = useMemo(() => {
+    const map = new Map();
+    aiScores.forEach(score => {
+      map.set(score.lead_id, score);
+    });
+    return map;
+  }, [aiScores]);
 
   const scoredLeads = useMemo(() => {
     return leads.map(lead => {
-      const criteria = calculateScoringCriteria(lead);
-      const score = calculateWeightedScore(criteria, weights);
+      // Check if we have a recent AI score (less than 7 days old)
+      const aiScore = aiScoreMap.get(lead.id);
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
-      return {
-        ...lead,
-        score: Math.round(score * 10) / 10, // Round to 1 decimal
-        scoringBreakdown: {
-          criteria,
-          weights,
-          totalScore: score
-        }
-      };
+      const hasRecentAIScore = aiScore && new Date(aiScore.created_at) > sevenDaysAgo;
+      
+      if (hasRecentAIScore) {
+        // Use AI score
+        return {
+          ...lead,
+          score: aiScore.score,
+          scoreSource: 'ai' as const,
+          aiRationale: aiScore.rationale,
+          aiConfidence: aiScore.confidence,
+          aiModel: aiScore.model,
+          aiScoredAt: aiScore.created_at,
+          scoringBreakdown: null
+        };
+      } else {
+        // Fallback to heuristic score
+        const criteria = calculateScoringCriteria(lead);
+        const heuristicScore = calculateWeightedScore(criteria, weights);
+        
+        return {
+          ...lead,
+          score: Math.round(heuristicScore * 10) / 10,
+          scoreSource: 'heuristic' as const,
+          scoringBreakdown: {
+            criteria,
+            weights,
+            totalScore: heuristicScore
+          }
+        };
+      }
     });
-  }, [leads, weights]);
+  }, [leads, aiScoreMap, weights]);
 
   const scoringStats = useMemo(() => {
     if (scoredLeads.length === 0) return null;
 
     const scores = scoredLeads.map(lead => lead.score);
+    const aiScores = scoredLeads.filter(lead => lead.scoreSource === 'ai').map(lead => lead.score);
+    const heuristicScores = scoredLeads.filter(lead => lead.scoreSource === 'heuristic').map(lead => lead.score);
+    
+    const calculateStats = (scoreArray: number[]) => ({
+      average: scoreArray.length > 0 ? scoreArray.reduce((sum, score) => sum + score, 0) / scoreArray.length : 0,
+      min: scoreArray.length > 0 ? Math.min(...scoreArray) : 0,
+      max: scoreArray.length > 0 ? Math.max(...scoreArray) : 0,
+      count: scoreArray.length
+    });
+
     const avgScore = scores.reduce((sum, score) => sum + score, 0) / scores.length;
     const maxScore = Math.max(...scores);
     const minScore = Math.min(...scores);
@@ -119,39 +166,17 @@ export const useLeadScoring = (leads: Lead[], customWeights?: Partial<ScoringWei
       poor: scoredLeads.filter(lead => lead.score < 4).length
     };
 
-    // Top performing criteria with enhanced metrics
-    const criteriaAverages = scoredLeads.reduce((acc, lead) => {
-      const criteria = lead.scoringBreakdown?.criteria;
-      if (criteria) {
-        Object.keys(criteria).forEach(key => {
-          acc[key as keyof ScoringCriteria] += criteria[key as keyof ScoringCriteria];
-        });
-      }
-      return acc;
-    }, {
-      hasPhone: 0,
-      hasEmail: 0,
-      businessQuality: 0,
-      cityScore: 0,
-      nicheScore: 0,
-      responseTime: 0,
-      engagementLevel: 0,
-      whatsappQuality: 0,
-      sourceQuality: 0,
-      dataCompleteness: 0,
-      leadAge: 0
-    } as ScoringCriteria);
-
-    Object.keys(criteriaAverages).forEach(key => {
-      criteriaAverages[key as keyof ScoringCriteria] /= scoredLeads.length;
-    });
+    // AI coverage percentage
+    const aiCoverage = scores.length > 0 ? (aiScores.length / scores.length) * 100 : 0;
 
     return {
       avgScore,
       maxScore,
       minScore,
       distribution,
-      criteriaAverages,
+      aiCoverage,
+      ai: calculateStats(aiScores),
+      heuristic: calculateStats(heuristicScores),
       totalLeads: scoredLeads.length
     };
   }, [scoredLeads]);
