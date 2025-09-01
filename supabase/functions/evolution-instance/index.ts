@@ -54,6 +54,7 @@ serve(async (req) => {
 
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
+    const evolutionIntegration = Deno.env.get('EVOLUTION_INTEGRATION') || 'WHATSAPP-BAILEYS';
     const defaultInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
 
     if (!evolutionApiUrl || !evolutionApiKey) {
@@ -61,7 +62,7 @@ serve(async (req) => {
     }
 
     // Determine instance name priority: instanceName > defaultInstanceName > user-based fallback
-    const targetInstanceName = instanceName || defaultInstanceName || `instance_${user.id.slice(0, 8)}`;
+    const targetInstanceName = (instanceName || defaultInstanceName || `instance_${user.id.slice(0, 8)}`).toLowerCase();
 
     console.log(`Evolution API action: ${action} for instance: ${targetInstanceName}`);
 
@@ -98,6 +99,7 @@ serve(async (req) => {
           body: JSON.stringify({
             instanceName: targetInstanceName,
             token: evolutionApiKey,
+            integration: evolutionIntegration,
             qrcode: true,
           }),
         });
