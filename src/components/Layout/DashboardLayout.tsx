@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Brain, BarChart3, Filter, Award, Settings, Search, Menu, X, User, LogOut, CheckSquare, MessageSquare } from "lucide-react";
+import { Brain, BarChart3, Filter, Award, Settings, Search, Menu, X, User, LogOut, CheckSquare, MessageSquare, Cog } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { RealtimeNotifications } from "@/components/Notifications/RealtimeNotifications";
@@ -22,6 +22,7 @@ const navigationItems = [
   { id: "quality", label: "Qualidade & Score", icon: Award },
   { id: "analytics", label: "Analytics", icon: BarChart3 },
   { id: "operations", label: "Operacional", icon: Settings },
+  { id: "ai-settings", label: "Configurações IA", icon: Cog },
 ];
 
 export const DashboardLayout = ({ children, currentPage, onPageChange }: DashboardLayoutProps) => {

@@ -57,6 +57,19 @@ serve(async (req) => {
       .eq('user_id', request.user_id)
       .single();
 
+    console.log(`Processing ${request.leads.length} leads for scoring`);
+
+    // Get user's AI settings for model configuration
+    const { data: userSettings } = await supabase
+      .from('ai_settings')
+      .select('feature_flags')
+      .eq('user_id', request.user_id)
+      .single();
+
+    const model = userSettings?.feature_flags?.model || 'gpt-4o-mini';
+    const temperature = userSettings?.feature_flags?.temperature || 0.7;
+    const maxTokens = userSettings?.feature_flags?.max_tokens || 1000;
+
     const featureEnabled = aiSettings?.feature_flags && 
                           typeof aiSettings.feature_flags === 'object' &&
                           (aiSettings.feature_flags as any).lead_scoring_ai === true;
@@ -155,22 +168,37 @@ LEAD ${index + 1}:
 Forneça pontuações detalhadas para todos os ${batch.length} leads.`;
 
       try {
+        const requestBody: any = {
+          model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+        };
+
+        // Handle different model parameter requirements
+        const legacyModels = ['gpt-4o', 'gpt-4o-mini'];
+        const newModels = ['gpt-5-2025-08-07', 'gpt-5-mini-2025-08-07', 'gpt-4.1-2025-04-14'];
+        
+        if (legacyModels.includes(model)) {
+          requestBody.max_tokens = Math.min(maxTokens, 2000);
+          requestBody.temperature = Math.min(temperature, 0.5);
+        } else if (newModels.includes(model)) {
+          requestBody.max_completion_tokens = Math.min(maxTokens, 2000);
+        } else {
+          requestBody.max_tokens = Math.min(maxTokens, 2000);
+          requestBody.temperature = Math.min(temperature, 0.5);
+        }
+        
+        requestBody.response_format = { type: "json_object" };
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${openAIApiKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt }
-            ],
-            temperature: 0.3,
-            max_tokens: 2000,
-            response_format: { type: "json_object" }
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -211,7 +239,7 @@ Forneça pontuações detalhadas para todos os ${batch.length} leads.`;
           .insert({
             user_id: request.user_id,
             scope: 'lead_score',
-            model: 'gpt-4o-mini',
+            model: model,
             tokens_in: tokensIn,
             tokens_out: tokensOut,
             cost_estimate: (tokensIn * 0.000001) + (tokensOut * 0.000003),
@@ -239,7 +267,7 @@ Forneça pontuações detalhadas para todos os ${batch.length} leads.`;
       lead_id: result.lead_id,
       score: Math.max(0, Math.min(10, result.score)), // Clamp between 0-10
       rationale: result.rationale,
-      model: 'gpt-4o-mini',
+      model: model,
       confidence: Math.max(0, Math.min(1, result.confidence || 0.8))
     }));
 

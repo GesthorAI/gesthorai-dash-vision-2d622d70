@@ -9,6 +9,7 @@ import Operations from "@/pages/Dashboard/Operations";
 import { Analytics } from "@/pages/Dashboard/Analytics";
 import { Tasks } from "@/pages/Dashboard/Tasks";
 import { Followups } from "@/pages/Dashboard/Followups";
+import { AISettings } from "@/pages/Settings/AISettings";
 
 // Placeholder components for other pages are now replaced with real implementations
 
@@ -33,6 +34,8 @@ const Index = () => {
         return <Followups />;
       case "analytics":
         return <Analytics />;
+      case "ai-settings":
+        return <AISettings />;
       default:
         return <Overview />;
     }

@@ -59,6 +59,19 @@ serve(async (req) => {
       }
     }
 
+    // Get AI settings for model configuration
+    const { data: aiSettings } = await supabase
+      .from('ai_settings')
+      .select('feature_flags, limits')
+      .eq('user_id', request.user_id)
+      .single();
+
+    const model = aiSettings?.feature_flags?.model || 'gpt-4o-mini';
+    const temperature = aiSettings?.feature_flags?.temperature || 0.7;
+    const maxTokens = aiSettings?.feature_flags?.max_tokens || 1000;
+
+    console.log(`Using model: ${model}, temperature: ${temperature}, max_tokens: ${maxTokens}`);
+
     // Get fallback persona if none specified or not found
     if (!persona) {
       const { data: defaultPersona, error: defaultError } = await supabase
@@ -139,22 +152,39 @@ Responda APENAS com um JSON válido no formato:
       throw new Error('OpenAI API key not configured');
     }
 
+    const requestBody: any = {
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+    };
+
+    // Handle different model parameter requirements
+    const legacyModels = ['gpt-4o', 'gpt-4o-mini'];
+    const newModels = ['gpt-5-2025-08-07', 'gpt-5-mini-2025-08-07', 'gpt-4.1-2025-04-14'];
+    
+    if (legacyModels.includes(model)) {
+      requestBody.max_tokens = maxTokens;
+      requestBody.temperature = temperature;
+    } else if (newModels.includes(model)) {
+      requestBody.max_completion_tokens = maxTokens;
+      // New models don't support temperature parameter
+    } else {
+      // Default to legacy format
+      requestBody.max_tokens = maxTokens;
+      requestBody.temperature = temperature;
+    }
+    
+    requestBody.response_format = { type: "json_object" };
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openAIApiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-        response_format: { type: "json_object" }
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -187,7 +217,7 @@ Responda APENAS com um JSON válido no formato:
       .insert({
         user_id: request.user_id,
         scope: 'followup',
-        model: 'gpt-4o-mini',
+        model: model,
         tokens_in: tokensIn,
         tokens_out: tokensOut,
         cost_estimate: costEstimate,
@@ -206,7 +236,7 @@ Responda APENAS com um JSON válido no formato:
       variations: aiResult.variations || [],
       persona_used: persona?.name || 'Default',
       tokens_used: tokensIn + tokensOut,
-      model: 'gpt-4o-mini'
+      model: model
     };
 
     console.log('AI followup generated successfully:', result);
@@ -220,8 +250,7 @@ Responda APENAS com um JSON válido no formato:
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        variations: [],
-        fallback: true
+        variations: []
       }),
       {
         status: 500,
