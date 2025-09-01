@@ -435,3 +435,5 @@ export const useFollowupRunItems = (runId: string) => {
     enabled: !!runId,
   });
 };
+
+// Export validation - useDeleteTemplate is exported above
