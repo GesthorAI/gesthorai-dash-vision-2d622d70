@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,20 +8,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AlertCircle, Eye, EyeOff, Shield, Users, TrendingUp } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 export const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp } = useAuth();
   const { toast } = useToast();
-
-  // Redirect if user is already logged in
-  useEffect(() => {
-    if (user) {
-      window.location.replace('/');
-    }
-  }, [user]);
+  const navigate = useNavigate();
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');
@@ -53,7 +48,7 @@ export const Auth = () => {
           title: "Login realizado com sucesso!",
           description: "Bem-vindo ao GesthorAI",
         });
-        window.location.replace('/');
+        navigate('/');
       }
     } catch (err) {
       setError('Erro inesperado. Tente novamente.');
