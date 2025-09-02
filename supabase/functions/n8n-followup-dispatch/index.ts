@@ -47,16 +47,39 @@ serve(async (req) => {
       userId: run.user_id 
     });
 
+    // Validate required parameters
+    if (!templateId) {
+      console.error('❌ Missing templateId in request');
+      return new Response(JSON.stringify({ 
+        error: 'Template ID is required for n8n dispatch',
+        success: false 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // Get template details
     const { data: template, error: templateError } = await supabase
       .from('message_templates')
       .select('*')
       .eq('id', templateId)
-      .single();
+      .maybeSingle();
 
     if (templateError) {
       console.error('❌ Error fetching template:', templateError);
       throw new Error(`Failed to fetch template: ${templateError.message}`);
+    }
+
+    if (!template) {
+      console.error('❌ Template not found:', templateId);
+      return new Response(JSON.stringify({ 
+        error: `Template with ID ${templateId} not found`,
+        success: false 
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('✅ Retrieved template:', { 

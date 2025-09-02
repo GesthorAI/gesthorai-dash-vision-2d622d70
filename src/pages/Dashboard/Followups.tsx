@@ -98,10 +98,21 @@ export const Followups: React.FC = () => {
   };
 
   const handleDispatchToN8n = async (run: FollowupRun) => {
+    if (!run.id) {
+      console.error('❌ ID do run é obrigatório');
+      return;
+    }
+
+    if (!run.template_id) {
+      console.error('❌ Template não encontrado para este run');
+      return;
+    }
+
     try {
+      console.log('🚀 Dispatching to n8n:', { runId: run.id, templateId: run.template_id });
       await dispatchToN8n.mutateAsync({
         runId: run.id,
-        templateId: run.template_id || '',
+        templateId: run.template_id,
         filters: run.filters,
         personaConfig: {
           name: 'Milene',
@@ -111,7 +122,13 @@ export const Followups: React.FC = () => {
         }
       });
     } catch (error) {
-      console.error('Error dispatching to n8n:', error);
+      console.error('❌ Error dispatching to n8n:', error);
+      const errorMessage = (error as Error).message;
+      if (errorMessage.includes('Template') && errorMessage.includes('not found')) {
+        console.error('❌ Template não encontrado. Verifique se o template ainda existe.');
+      } else {
+        console.error('❌ Erro ao enviar ao n8n:', errorMessage);
+      }
     }
   };
 
@@ -243,10 +260,17 @@ export const Followups: React.FC = () => {
                                   <Play className="h-4 w-4 mr-2" />
                                   Iniciar Envio (Direto)
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDispatchToN8n(run)}>
-                                  <Send className="h-4 w-4 mr-2" />
-                                  Enviar via n8n
-                                </DropdownMenuItem>
+                                {run.template_id ? (
+                                  <DropdownMenuItem onClick={() => handleDispatchToN8n(run)}>
+                                    <Send className="h-4 w-4 mr-2" />
+                                    Enviar via n8n
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem disabled>
+                                    <Send className="h-4 w-4 mr-2 opacity-50" />
+                                    Template necessário
+                                  </DropdownMenuItem>
+                                )}
                               </>
                             )}
                             {run.status === 'sending' && (
@@ -255,10 +279,17 @@ export const Followups: React.FC = () => {
                                   <Send className="h-4 w-4 mr-2" />
                                   Continuar Envio (Direto)
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDispatchToN8n(run)}>
-                                  <Send className="h-4 w-4 mr-2" />
-                                  Continuar via n8n
-                                </DropdownMenuItem>
+                                {run.template_id ? (
+                                  <DropdownMenuItem onClick={() => handleDispatchToN8n(run)}>
+                                    <Send className="h-4 w-4 mr-2" />
+                                    Continuar via n8n
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <DropdownMenuItem disabled>
+                                    <Send className="h-4 w-4 mr-2 opacity-50" />
+                                    Template necessário
+                                  </DropdownMenuItem>
+                                )}
                               </>
                             )}
                           </DropdownMenuContent>
@@ -315,11 +346,12 @@ export const Followups: React.FC = () => {
                               </Button>
                               <Button 
                                 onClick={() => handleDispatchToN8n(run)}
-                                disabled={dispatchToN8n.isPending}
+                                disabled={dispatchToN8n.isPending || !run.template_id}
                                 size="sm"
                               >
                                 <Send className="h-4 w-4 mr-2" />
-                                {dispatchToN8n.isPending ? 'Enviando...' : 'Enviar via n8n'}
+                                {dispatchToN8n.isPending ? 'Enviando...' : 
+                                 !run.template_id ? 'Template necessário' : 'Enviar via n8n'}
                               </Button>
                             </div>
                           </div>
@@ -343,11 +375,12 @@ export const Followups: React.FC = () => {
                               </Button>
                               <Button 
                                 onClick={() => handleDispatchToN8n(run)}
-                                disabled={dispatchToN8n.isPending}
+                                disabled={dispatchToN8n.isPending || !run.template_id}
                                 size="sm"
                               >
                                 <Send className="h-4 w-4 mr-2" />
-                                {dispatchToN8n.isPending ? 'Enviando...' : 'Continuar via n8n'}
+                                {dispatchToN8n.isPending ? 'Enviando...' : 
+                                 !run.template_id ? 'Template necessário' : 'Continuar via n8n'}
                               </Button>
                             </div>
                           </div>
