@@ -1,265 +1,408 @@
-import React, { useState, useEffect } from 'react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { toast } from "@/components/ui/use-toast"
-import { useToast } from "@/hooks/use-toast"
-import { supabase } from '@/integrations/supabase/client';
-import QRCode from "react-qr-code";
 
-interface WhatsAppConnectDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onInstanceConnected: () => void;
-}
+import { useState, useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useWhatsAppInstances, useEvolutionAPI } from "@/hooks/useWhatsAppInstances";
+import { Loader2, Smartphone, RefreshCw, QrCode, CheckCircle, XCircle, Wifi, WifiOff, Plus, Trash2 } from "lucide-react";
 
-export function WhatsAppConnectDialog({ isOpen, onClose, onInstanceConnected }: WhatsAppConnectDialogProps) {
-  const [instanceName, setInstanceName] = useState<string>('gesthorai');
+export const WhatsAppConnectDialog = () => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
-  const [status, setStatus] = useState<string>('disconnected');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isConnecting, setIsConnecting] = useState<boolean>(false);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [showQrCode, setShowQrCode] = useState<boolean>(false);
-  const [instanceExists, setInstanceExists] = useState<boolean>(false);
-  const { toast } = useToast()
+  const [error, setError] = useState<string | null>(null);
+  const [polling, setPolling] = useState(false);
+  const [instanceName, setInstanceName] = useState('');
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string>('');
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  
+  const { toast } = useToast();
+  const { data: instances = [], isLoading: instancesLoading } = useWhatsAppInstances();
+  const evolutionAPI = useEvolutionAPI();
 
-  // Função para chamar a Evolution API
-  const callEvolutionAPI = async (action: string, instanceName?: string) => {
+  // Load last used instance name from localStorage
+  useEffect(() => {
+    const lastInstanceName = localStorage.getItem('lastWhatsAppInstanceName');
+    if (lastInstanceName) {
+      setInstanceName(lastInstanceName);
+    }
+  }, []);
+
+  // Validate instance name
+  const isValidInstanceName = (name: string) => {
+    return /^[a-zA-Z0-9_-]{3,50}$/.test(name);
+  };
+
+  const callEvolutionAPI = async (action: string, targetInstanceName?: string) => {
     try {
-      const { data, error } = await supabase.functions.invoke('evolution-instance', {
-        body: { action, instanceName }
+      const result = await evolutionAPI.mutateAsync({ 
+        action, 
+        instanceName: targetInstanceName || instanceName 
       });
-
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw error;
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error calling Evolution API:', error);
-      throw error;
+      return result;
+    } catch (error: any) {
+      throw new Error(error.message || 'Erro na API Evolution');
     }
   };
 
-  const checkInstanceStatus = async () => {
-    setIsLoading(true);
+  const checkInstanceStatus = async (targetInstanceName?: string) => {
     try {
-      const response = await callEvolutionAPI('status', instanceName);
-
-      if (response.success) {
-        setStatus(response.status);
-        setInstanceExists(true);
-        if (response.status === 'CONNECTED') {
-          onInstanceConnected();
+      const result = await callEvolutionAPI('status', targetInstanceName);
+      if (result.success) {
+        const status = result.status || 'disconnected';
+        if (status === 'open' || status === 'connected') {
+          setQrCode(null);
+          setPolling(false);
         }
-      } else {
-        setStatus('disconnected');
-        setInstanceExists(false);
-        console.log('Instance does not exist or is disconnected.');
+        return status;
       }
     } catch (error) {
-      console.error('Failed to check instance status:', error);
-      toast({
-        title: "Erro ao verificar o status da instância",
-        description: "Por favor, verifique sua conexão com a Evolution API.",
-        variant: "destructive",
-      })
-      setStatus('error');
-    } finally {
-      setIsLoading(false);
+      console.error('Error checking status:', error);
     }
+    return 'disconnected';
   };
 
-  const handleConnect = async () => {
-    setIsConnecting(true);
-    try {
-      const response = await callEvolutionAPI('connect', instanceName);
+  const createInstance = async () => {
+    if (!instanceName || !isValidInstanceName(instanceName)) {
+      toast({
+        title: "Nome inválido",
+        description: "Use 3-50 caracteres alfanuméricos, _ ou -",
+        variant: "destructive",
+      });
+      return;
+    }
 
-      if (response.success) {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await callEvolutionAPI('create');
+      
+      if (result.success) {
+        localStorage.setItem('lastWhatsAppInstanceName', instanceName);
         toast({
-          title: "Instância criada com sucesso!",
-          description: "Aguarde enquanto o QR Code é gerado.",
-        })
-        setStatus('connecting');
-        setInstanceExists(true);
-        setShowQrCode(true);
-        fetchQrCode();
+          title: "Instância criada",
+          description: "Instância WhatsApp criada com sucesso!",
+        });
+        await connectInstance();
       } else {
-        toast({
-          title: "Erro ao criar instância",
-          description: response.error || "Falha ao criar a instância. Verifique as configurações da Evolution API.",
-          variant: "destructive",
-        })
-        console.error('Failed to connect:', response.error);
-        setStatus('error');
-        setInstanceExists(false);
+        setError(result.error || 'Erro ao criar instância');
       }
-    } catch (error) {
+    } catch (error: any) {
+      setError(error.message || 'Erro ao criar instância');
       toast({
-        title: "Erro ao conectar",
-        description: "Houve um erro ao tentar conectar. Verifique sua conexão com a Evolution API.",
+        title: "Erro",
+        description: error.message || 'Erro ao criar instância',
         variant: "destructive",
-      })
-      console.error('Failed to connect:', error);
-      setStatus('error');
-      setInstanceExists(false);
+      });
     } finally {
-      setIsConnecting(false);
+      setLoading(false);
     }
   };
 
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      await fetchQrCode();
-      toast({
-        title: "QR Code atualizado",
-        description: "Use um novo QR Code para conectar sua instância.",
-      })
-    } catch (error) {
-      toast({
-        title: "Erro ao atualizar o QR Code",
-        description: "Houve um erro ao tentar atualizar o QR Code. Verifique sua conexão com a Evolution API.",
-        variant: "destructive",
-      })
-      console.error('Failed to refresh QR code:', error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+  const connectInstance = async (targetInstanceName?: string) => {
+    const nameToUse = targetInstanceName || instanceName;
+    if (!nameToUse) return;
 
-  const fetchQrCode = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
-      const response = await callEvolutionAPI('qr', instanceName);
-
-      if (response.success) {
-        setQrCode(response.qr);
-        setStatus('qr-code');
-      } else {
+      const result = await callEvolutionAPI('connect', nameToUse);
+      
+      if (result.success && result.qrcode) {
+        setQrCode(result.qrcode);
+        setPolling(true);
         toast({
-          title: "Erro ao obter QR Code",
-          description: response.error || "Falha ao obter o QR Code. Verifique as configurações da Evolution API.",
-          variant: "destructive",
-        })
-        console.error('Failed to fetch QR code:', response.error);
-        setStatus('error');
+          title: "QR Code gerado",
+          description: "Escaneie o código QR com seu WhatsApp",
+        });
+      } else {
+        setError(result.error || 'Erro ao gerar QR Code');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Erro ao conectar instância');
+      toast({
+        title: "Erro",
+        description: error.message || 'Erro ao conectar instância',
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const disconnectInstance = async (targetInstanceName?: string) => {
+    const nameToUse = targetInstanceName || instanceName;
+    if (!nameToUse) return;
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await callEvolutionAPI('disconnect', nameToUse);
+      
+      if (result.success) {
         setQrCode(null);
+        setPolling(false);
+        toast({
+          title: "Desconectado",
+          description: "Instância desconectada com sucesso",
+        });
+      } else {
+        setError(result.error || 'Erro ao desconectar');
       }
-    } catch (error) {
+    } catch (error: any) {
+      setError(error.message || 'Erro ao desconectar instância');
       toast({
-        title: "Erro ao obter QR Code",
-        description: "Houve um erro ao tentar obter o QR Code. Verifique sua conexão com a Evolution API.",
+        title: "Erro",
+        description: error.message || 'Erro ao desconectar instância',
         variant: "destructive",
-      })
-      console.error('Failed to fetch QR code:', error);
-      setStatus('error');
-      setQrCode(null);
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      checkInstanceStatus();
-    }
-  }, [isOpen]);
+  const refreshQrCode = async () => {
+    if (!instanceName) return;
 
-  useEffect(() => {
-    if (status === 'CONNECTED') {
-      onInstanceConnected();
-      onClose();
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const result = await callEvolutionAPI('qrcode');
+      
+      if (result.success && result.qrcode) {
+        setQrCode(result.qrcode);
+      } else {
+        setError(result.error || 'Erro ao atualizar QR Code');
+      }
+    } catch (error: any) {
+      setError(error.message || 'Erro ao atualizar QR Code');
+    } finally {
+      setLoading(false);
     }
-  }, [status, onInstanceConnected, onClose]);
+  };
+
+  // Poll for status changes when QR is displayed
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (polling && qrCode && instanceName) {
+      interval = setInterval(() => checkInstanceStatus(), 3000);
+    }
+    
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [polling, qrCode, instanceName]);
+
+  const getStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'open':
+      case 'connected':
+        return <Badge variant="default" className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" />Conectado</Badge>;
+      case 'connecting':
+      case 'qr_generated':
+        return <Badge variant="secondary"><Loader2 className="w-3 h-3 mr-1 animate-spin" />Conectando</Badge>;
+      case 'qrReadSuccess':
+        return <Badge variant="secondary"><Wifi className="w-3 h-3 mr-1" />QR Lido</Badge>;
+      default:
+        return <Badge variant="outline"><WifiOff className="w-3 h-3 mr-1" />Desconectado</Badge>;
+    }
+  };
+
+  const selectedInstance = instances.find(i => i.id === selectedInstanceId);
+  const currentInstanceName = selectedInstance?.name || instanceName;
+  const currentStatus = selectedInstance?.last_status || 'disconnected';
 
   return (
-    <AlertDialog open={isOpen} onOpenChange={onClose}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Conectar ao WhatsApp</AlertDialogTitle>
-          <AlertDialogDescription>
-            Para conectar sua conta do WhatsApp, siga as instruções abaixo.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">
-              Nome da Instância
-            </Label>
-            <Input
-              type="text"
-              id="name"
-              value={instanceName}
-              onChange={(e) => setInstanceName(e.target.value)}
-              className="col-span-3"
-            />
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Smartphone className="w-4 h-4 mr-2" />
+          WhatsApp
+        </Button>
+      </DialogTrigger>
+      
+      <DialogContent aria-describedby={undefined} className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Smartphone className="w-5 h-5" />
+            Gerenciar WhatsApp
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Instance Selection */}
+          <div className="space-y-2">
+            <Label htmlFor="instance-select">Instância</Label>
+            <div className="flex gap-2">
+              <Select
+                value={selectedInstanceId}
+                onValueChange={(value) => {
+                  if (value === 'new') {
+                    setIsCreatingNew(true);
+                    setSelectedInstanceId('');
+                    setInstanceName('');
+                  } else {
+                    setIsCreatingNew(false);
+                    setSelectedInstanceId(value);
+                    const selected = instances.find(i => i.id === value);
+                    if (selected) {
+                      setInstanceName(selected.name);
+                    }
+                  }
+                }}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Selecione ou crie uma instância" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">
+                    <div className="flex items-center gap-2">
+                      <Plus className="w-4 h-4" />
+                      Nova Instância
+                    </div>
+                  </SelectItem>
+                  {instances.map((instance) => (
+                    <SelectItem key={instance.id} value={instance.id}>
+                      <div className="flex items-center justify-between w-full">
+                        <span>{instance.name}</span>
+                        {getStatusBadge(instance.last_status)}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {isLoading ? (
-            <div className="text-center">Verificando status...</div>
-          ) : (
-            <>
-              {status === 'disconnected' && !instanceExists && (
-                <div className="text-center">
-                  <p>A instância não existe ou está desconectada.</p>
-                  <Button onClick={handleConnect} disabled={isConnecting}>
-                    {isConnecting ? 'Conectando...' : 'Criar Instância'}
-                  </Button>
-                </div>
-              )}
+          {/* Instance Name Input (for new instances or editing) */}
+          {(isCreatingNew || !selectedInstanceId) && (
+            <div className="space-y-2">
+              <Label htmlFor="instance-name">Nome da Instância *</Label>
+              <Input
+                id="instance-name"
+                placeholder="ex: vendas-principal"
+                value={instanceName}
+                onChange={(e) => setInstanceName(e.target.value)}
+                className={!isValidInstanceName(instanceName) && instanceName ? 'border-red-500' : ''}
+              />
+              <p className="text-xs text-muted-foreground">
+                3-50 caracteres alfanuméricos, _ ou -
+              </p>
+            </div>
+          )}
 
-              {status === 'disconnected' && instanceExists && (
-                <div className="text-center">
-                  <p>A instância existe, mas está desconectada.</p>
-                  <Button onClick={handleRefresh} disabled={isRefreshing}>
-                    {isRefreshing ? 'Atualizar QR Code...' : 'Mostrar QR Code'}
-                  </Button>
-                </div>
-              )}
+          {/* Current Instance Status */}
+          {currentInstanceName && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center justify-between">
+                  <span>Instância: {currentInstanceName}</span>
+                  {getStatusBadge(currentStatus)}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {(currentStatus === 'open' || currentStatus === 'connected') ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      WhatsApp conectado e pronto para enviar mensagens!
+                    </p>
+                    {selectedInstance?.number && (
+                      <p className="text-xs text-muted-foreground">
+                        Número: {selectedInstance.number}
+                      </p>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => disconnectInstance()}
+                      disabled={loading}
+                    >
+                      {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <XCircle className="w-4 h-4 mr-2" />}
+                      Desconectar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {qrCode ? (
+                      <div className="space-y-3">
+                        <div className="flex justify-center">
+                          <img 
+                            src={qrCode} 
+                            alt="QR Code WhatsApp" 
+                            className="w-48 h-48 border rounded-lg"
+                          />
+                        </div>
+                        <p className="text-xs text-center text-muted-foreground">
+                          Abra o WhatsApp → Mais opções → Aparelhos conectados → Conectar um aparelho
+                        </p>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={refreshQrCode}
+                            disabled={loading}
+                            className="flex-1"
+                          >
+                            {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+                            Atualizar QR
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-sm text-muted-foreground">
+                          Configure sua instância WhatsApp para envio de mensagens automáticas.
+                        </p>
+                        <div className="flex gap-2">
+                          {selectedInstance ? (
+                            <Button 
+                              onClick={() => connectInstance()}
+                              disabled={loading}
+                              size="sm"
+                              className="flex-1"
+                            >
+                              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <QrCode className="w-4 h-4 mr-2" />}
+                              Gerar QR Code
+                            </Button>
+                          ) : (
+                            <Button 
+                              onClick={createInstance}
+                              disabled={loading || !instanceName || !isValidInstanceName(instanceName)}
+                              size="sm"
+                              className="flex-1"
+                            >
+                              {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
+                              Criar & Conectar
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-              {status === 'connecting' && (
-                <div className="text-center">Conectando...</div>
-              )}
-
-              {status === 'qr-code' && qrCode && (
-                <div className="text-center">
-                  <p>Escaneie o QR Code abaixo com seu celular:</p>
-                  <QRCode value={qrCode} size={256} />
-                  <Button onClick={handleRefresh} disabled={isRefreshing} className="mt-4">
-                    {isRefreshing ? 'Atualizando...' : 'Atualizar QR Code'}
-                  </Button>
-                </div>
-              )}
-
-              {status === 'CONNECTED' && (
-                <div className="text-center">
-                  <p>WhatsApp conectado com sucesso!</p>
-                </div>
-              )}
-
-              {status === 'error' && (
-                <div className="text-center">
-                  <p>Erro ao conectar. Verifique as configurações da Evolution API.</p>
-                </div>
-              )}
-            </>
+          {error && (
+            <Alert variant="destructive">
+              <XCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
         </div>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  )
-}
+      </DialogContent>
+    </Dialog>
+  );
+};

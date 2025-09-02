@@ -250,41 +250,6 @@ export type Database = {
         }
         Relationships: []
       }
-      evolution_settings: {
-        Row: {
-          created_at: string
-          default_instance_name: string | null
-          evolution_api_url: string
-          id: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          default_instance_name?: string | null
-          evolution_api_url: string
-          id?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          default_instance_name?: string | null
-          evolution_api_url?: string
-          id?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "evolution_settings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       followup_run_items: {
         Row: {
           created_at: string
