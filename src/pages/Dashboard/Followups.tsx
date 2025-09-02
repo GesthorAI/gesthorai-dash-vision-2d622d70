@@ -30,7 +30,9 @@ import {
   useSendFollowupMessages,
   useCreateTemplate,
   useUpdateTemplate,
-  useDeleteTemplate
+  useDeleteTemplate,
+  useDispatchToN8n,
+  FollowupRun
 } from '@/hooks/useFollowups';
 import { TemplateForm } from '@/components/Followups/TemplateForm';
 import { formatDistanceToNow } from 'date-fns';
@@ -50,6 +52,7 @@ export const Followups: React.FC = () => {
   const { data: runItems } = useFollowupRunItems(selectedRunId);
   const createDefaultTemplates = useCreateDefaultTemplates();
   const sendMessages = useSendFollowupMessages();
+  const dispatchToN8n = useDispatchToN8n();
   const createTemplate = useCreateTemplate();
   const updateTemplate = useUpdateTemplate();
   const deleteTemplate = useDeleteTemplate();
@@ -91,6 +94,24 @@ export const Followups: React.FC = () => {
       });
     } catch (error) {
       console.error('Error continuing send:', error);
+    }
+  };
+
+  const handleDispatchToN8n = async (run: FollowupRun) => {
+    try {
+      await dispatchToN8n.mutateAsync({
+        runId: run.id,
+        templateId: run.template_id || '',
+        filters: run.filters,
+        personaConfig: {
+          name: 'Milene',
+          systemPrompt: 'Você é um especialista em follow-up consultivo.',
+          useJinaAI: false,
+          messageDelay: 3
+        }
+      });
+    } catch (error) {
+      console.error('Error dispatching to n8n:', error);
     }
   };
 
@@ -217,16 +238,28 @@ export const Followups: React.FC = () => {
                               Ver Detalhes
                             </DropdownMenuItem>
                             {run.status === 'prepared' && (
-                              <DropdownMenuItem onClick={() => handleContinueSending(run.id)}>
-                                <Play className="h-4 w-4 mr-2" />
-                                Iniciar Envio
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem onClick={() => handleContinueSending(run.id)}>
+                                  <Play className="h-4 w-4 mr-2" />
+                                  Iniciar Envio (Direto)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDispatchToN8n(run)}>
+                                  <Send className="h-4 w-4 mr-2" />
+                                  Enviar via n8n
+                                </DropdownMenuItem>
+                              </>
                             )}
                             {run.status === 'sending' && (
-                              <DropdownMenuItem onClick={() => handleContinueSending(run.id)}>
-                                <Send className="h-4 w-4 mr-2" />
-                                Continuar Envio
-                              </DropdownMenuItem>
+                              <>
+                                <DropdownMenuItem onClick={() => handleContinueSending(run.id)}>
+                                  <Send className="h-4 w-4 mr-2" />
+                                  Continuar Envio (Direto)
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDispatchToN8n(run)}>
+                                  <Send className="h-4 w-4 mr-2" />
+                                  Continuar via n8n
+                                </DropdownMenuItem>
+                              </>
                             )}
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -265,25 +298,59 @@ export const Followups: React.FC = () => {
                         )}
 
                         {run.status === 'prepared' && (
-                          <Button 
-                            onClick={() => handleContinueSending(run.id)}
-                            disabled={sendMessages.isPending}
-                            size="sm"
-                          >
-                            <Play className="h-4 w-4 mr-2" />
-                            {sendMessages.isPending ? 'Iniciando...' : 'Iniciar Envio'}
-                          </Button>
+                          <div className="space-y-3">
+                            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                              <strong>Envio Direto:</strong> Envia mensagens via Evolution API localmente<br/>
+                              <strong>Via n8n:</strong> Despacha para o webhook n8n (https://webhook.gesthorai.com.br/webhook/follow-up)
+                            </div>
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => handleContinueSending(run.id)}
+                                disabled={sendMessages.isPending}
+                                size="sm"
+                                variant="outline"
+                              >
+                                <Play className="h-4 w-4 mr-2" />
+                                {sendMessages.isPending ? 'Iniciando...' : 'Envio Direto'}
+                              </Button>
+                              <Button 
+                                onClick={() => handleDispatchToN8n(run)}
+                                disabled={dispatchToN8n.isPending}
+                                size="sm"
+                              >
+                                <Send className="h-4 w-4 mr-2" />
+                                {dispatchToN8n.isPending ? 'Enviando...' : 'Enviar via n8n'}
+                              </Button>
+                            </div>
+                          </div>
                         )}
 
                         {run.status === 'sending' && (
-                          <Button 
-                            onClick={() => handleContinueSending(run.id)}
-                            disabled={sendMessages.isPending}
-                            size="sm"
-                          >
-                            <Send className="h-4 w-4 mr-2" />
-                            {sendMessages.isPending ? 'Enviando...' : 'Continuar Envio'}
-                          </Button>
+                          <div className="space-y-3">
+                            <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                              <strong>Continuar Direto:</strong> Continua envio via Evolution API localmente<br/>
+                              <strong>Via n8n:</strong> Redefine para processamento via n8n workflow
+                            </div>
+                            <div className="flex gap-2">
+                              <Button 
+                                onClick={() => handleContinueSending(run.id)}
+                                disabled={sendMessages.isPending}
+                                size="sm"
+                                variant="outline"
+                              >
+                                <Send className="h-4 w-4 mr-2" />
+                                {sendMessages.isPending ? 'Enviando...' : 'Continuar Direto'}
+                              </Button>
+                              <Button 
+                                onClick={() => handleDispatchToN8n(run)}
+                                disabled={dispatchToN8n.isPending}
+                                size="sm"
+                              >
+                                <Send className="h-4 w-4 mr-2" />
+                                {dispatchToN8n.isPending ? 'Enviando...' : 'Continuar via n8n'}
+                              </Button>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </CardContent>

@@ -23,7 +23,10 @@ serve(async (req) => {
 
     const { runId, templateId, filters, personaConfig } = await req.json();
 
-    console.log('Dispatching to n8n:', { runId, templateId, filters, personaConfig });
+    console.log('=== N8N FOLLOWUP DISPATCH STARTED ===');
+    console.log('Request payload:', { runId, templateId, filters, personaConfig });
+    console.log('N8N Webhook URL:', n8nWebhookUrl);
+    console.log('Using webhook token:', webhookToken ? 'Yes' : 'No');
 
     // Get the followup run details
     const { data: run, error: runError } = await supabase
@@ -33,9 +36,16 @@ serve(async (req) => {
       .single();
 
     if (runError) {
-      console.error('Error fetching run:', runError);
+      console.error('❌ Error fetching run:', runError);
       throw new Error(`Failed to fetch run: ${runError.message}`);
     }
+
+    console.log('✅ Retrieved followup run:', { 
+      id: run.id, 
+      name: run.name, 
+      status: run.status, 
+      userId: run.user_id 
+    });
 
     // Get template details
     const { data: template, error: templateError } = await supabase
@@ -45,9 +55,15 @@ serve(async (req) => {
       .single();
 
     if (templateError) {
-      console.error('Error fetching template:', templateError);
+      console.error('❌ Error fetching template:', templateError);
       throw new Error(`Failed to fetch template: ${templateError.message}`);
     }
+
+    console.log('✅ Retrieved template:', { 
+      id: template.id, 
+      name: template.name, 
+      variablesCount: template.variables?.length || 0 
+    });
 
     // Build filter query for leads
     let query = supabase
@@ -81,11 +97,18 @@ serve(async (req) => {
     const { data: leads, error: leadsError } = await query;
 
     if (leadsError) {
-      console.error('Error fetching leads:', leadsError);
+      console.error('❌ Error fetching leads:', leadsError);
       throw new Error(`Failed to fetch leads: ${leadsError.message}`);
     }
 
-    console.log(`Found ${leads?.length || 0} leads for n8n dispatch`);
+    console.log(`✅ Found ${leads?.length || 0} leads matching filters:`, {
+      niche: filters.niche || 'Any',
+      city: filters.city || 'Any',
+      status: filters.status || 'Any',
+      minScore: filters.minScore || 'No minimum',
+      maxDaysOld: filters.maxDaysOld || 'No limit',
+      excludeContacted: filters.excludeContacted || false
+    });
 
     // Update run status to sending
     const { error: updateError } = await supabase
@@ -98,7 +121,9 @@ serve(async (req) => {
       .eq('id', runId);
 
     if (updateError) {
-      console.error('Error updating run status:', updateError);
+      console.error('❌ Error updating run status:', updateError);
+    } else {
+      console.log('✅ Updated run status to "sending"');
     }
 
     // Prepare payload for n8n
@@ -128,7 +153,9 @@ serve(async (req) => {
     };
 
     // Send to n8n webhook
-    console.log('Sending to n8n webhook:', n8nWebhookUrl);
+    console.log('🚀 Sending payload to n8n webhook:', n8nWebhookUrl);
+    console.log('Payload size:', JSON.stringify(n8nPayload).length, 'characters');
+    console.log('Leads to process:', leads?.length || 0);
     
     const n8nResponse = await fetch(n8nWebhookUrl, {
       method: 'POST',
@@ -141,12 +168,30 @@ serve(async (req) => {
 
     if (!n8nResponse.ok) {
       const errorText = await n8nResponse.text();
-      console.error('N8N webhook error:', errorText);
+      console.error('❌ N8N webhook error:', {
+        status: n8nResponse.status,
+        statusText: n8nResponse.statusText,
+        error: errorText,
+        url: n8nWebhookUrl
+      });
       throw new Error(`N8N webhook failed: ${n8nResponse.status} - ${errorText}`);
     }
 
     const n8nResult = await n8nResponse.json();
-    console.log('N8N response:', n8nResult);
+    console.log('✅ N8N webhook success:', {
+      status: n8nResponse.status,
+      workflowId: n8nResult.workflowId || 'Unknown',
+      executionId: n8nResult.executionId || 'Unknown',
+      message: n8nResult.message || 'No message'
+    });
+
+    console.log('=== N8N FOLLOWUP DISPATCH COMPLETED ===');
+    console.log('Final result:', {
+      runId,
+      totalLeads: leads?.length || 0,
+      n8nWorkflowId: n8nResult.workflowId || null,
+      dispatchedAt: new Date().toISOString()
+    });
 
     return new Response(JSON.stringify({
       success: true,
@@ -159,7 +204,13 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('Error in n8n-followup-dispatch:', error);
+    console.error('❌ N8N FOLLOWUP DISPATCH FAILED ===');
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+    
     return new Response(JSON.stringify({ 
       error: error.message,
       success: false 
