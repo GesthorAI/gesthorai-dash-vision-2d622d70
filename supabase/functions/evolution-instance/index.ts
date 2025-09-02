@@ -210,12 +210,19 @@ serve(async (req) => {
 
           // Handle different response formats from Evolution API
           if (Array.isArray(statusData)) {
-            instanceStatus = statusData.find(instance => 
-              instance.instance?.instanceName === targetInstanceName ||
-              instance.instanceName === targetInstanceName
-            );
-          } else if (statusData.instance?.instanceName === targetInstanceName || statusData.instanceName === targetInstanceName) {
-            instanceStatus = statusData;
+            instanceStatus = statusData.find(instance => {
+              const instanceName = instance.instance?.instanceName || 
+                                 instance.instanceName || 
+                                 instance.name;
+              return instanceName?.toLowerCase() === targetInstanceName.toLowerCase();
+            });
+          } else {
+            const instanceName = statusData.instance?.instanceName || 
+                               statusData.instanceName || 
+                               statusData.name;
+            if (instanceName?.toLowerCase() === targetInstanceName.toLowerCase()) {
+              instanceStatus = statusData;
+            }
           }
 
           if (instanceStatus) {

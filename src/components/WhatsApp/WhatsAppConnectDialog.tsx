@@ -56,7 +56,7 @@ export const WhatsAppConnectDialog = () => {
       const result = await callEvolutionAPI('status', targetInstanceName);
       if (result.success) {
         const status = result.status || 'disconnected';
-        if (status === 'open') {
+        if (status === 'open' || status === 'connected') {
           setQrCode(null);
           setPolling(false);
         }
@@ -207,6 +207,7 @@ export const WhatsAppConnectDialog = () => {
   const getStatusBadge = (status?: string) => {
     switch (status) {
       case 'open':
+      case 'connected':
         return <Badge variant="default" className="bg-green-500"><CheckCircle className="w-3 h-3 mr-1" />Conectado</Badge>;
       case 'connecting':
       case 'qr_generated':
@@ -311,7 +312,7 @@ export const WhatsAppConnectDialog = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="pt-0">
-                {currentStatus === 'open' ? (
+                {(currentStatus === 'open' || currentStatus === 'connected') ? (
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">
                       WhatsApp conectado e pronto para enviar mensagens!
