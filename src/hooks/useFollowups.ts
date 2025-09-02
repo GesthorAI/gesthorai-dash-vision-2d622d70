@@ -374,6 +374,56 @@ export const useSendFollowupMessages = () => {
   });
 };
 
+// Hook for validating template existence
+export const useValidateTemplate = () => {
+  return useMutation({
+    mutationFn: async (templateId: string) => {
+      const { data, error } = await supabase
+        .from('message_templates')
+        .select('id, name')
+        .eq('id', templateId)
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+};
+
+// Hook for updating followup run template
+export const useUpdateFollowupRunTemplate = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({ runId, templateId }: { runId: string; templateId: string }) => {
+      const { data, error } = await supabase
+        .from('followup_runs')
+        .update({ template_id: templateId })
+        .eq('id', runId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['followup-runs'] });
+      toast({
+        title: 'Template atualizado',
+        description: 'Template do follow-up foi atualizado com sucesso!',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro',
+        description: `Falha ao atualizar template: ${error.message}`,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
 // Hook for dispatching to n8n
 export const useDispatchToN8n = () => {
   const queryClient = useQueryClient();
@@ -406,11 +456,27 @@ export const useDispatchToN8n = () => {
       });
     },
     onError: (error: Error) => {
-      toast({
-        title: 'Erro no envio n8n',
-        description: `Falha ao enviar para n8n: ${error.message}`,
-        variant: 'destructive',
-      });
+      const errorMessage = error.message.toLowerCase();
+      
+      if (errorMessage.includes('template') && errorMessage.includes('not found')) {
+        toast({
+          title: 'Template não encontrado',
+          description: 'O template selecionado não existe mais. Selecione um novo template.',
+          variant: 'destructive',
+        });
+      } else if (errorMessage.includes('400') || errorMessage.includes('bad request')) {
+        toast({
+          title: 'Dados inválidos',
+          description: 'Verifique se todos os dados necessários estão preenchidos corretamente.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Erro no envio n8n',
+          description: `Falha ao enviar para n8n: ${error.message}`,
+          variant: 'destructive',
+        });
+      }
     },
   });
 };

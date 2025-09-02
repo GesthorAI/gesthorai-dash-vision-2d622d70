@@ -32,6 +32,8 @@ import {
   useUpdateTemplate,
   useDeleteTemplate,
   useDispatchToN8n,
+  useValidateTemplate,
+  useUpdateFollowupRunTemplate,
   FollowupRun
 } from '@/hooks/useFollowups';
 import { TemplateForm } from '@/components/Followups/TemplateForm';
@@ -46,6 +48,7 @@ export const Followups: React.FC = () => {
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<string>('');
+  const [selectingTemplateForRun, setSelectingTemplateForRun] = useState<string>('');
 
   const { data: runs, isLoading: runsLoading } = useFollowupRuns();
   const { data: templates } = useMessageTemplates();
@@ -53,6 +56,8 @@ export const Followups: React.FC = () => {
   const createDefaultTemplates = useCreateDefaultTemplates();
   const sendMessages = useSendFollowupMessages();
   const dispatchToN8n = useDispatchToN8n();
+  const validateTemplate = useValidateTemplate();
+  const updateRunTemplate = useUpdateFollowupRunTemplate();
   const createTemplate = useCreateTemplate();
   const updateTemplate = useUpdateTemplate();
   const deleteTemplate = useDeleteTemplate();
@@ -105,10 +110,14 @@ export const Followups: React.FC = () => {
 
     if (!run.template_id) {
       console.error('❌ Template não encontrado para este run');
+      setSelectingTemplateForRun(run.id);
       return;
     }
 
     try {
+      // Validate template exists before dispatching
+      await validateTemplate.mutateAsync(run.template_id);
+      
       console.log('🚀 Dispatching to n8n:', { runId: run.id, templateId: run.template_id });
       await dispatchToN8n.mutateAsync({
         runId: run.id,
@@ -124,12 +133,31 @@ export const Followups: React.FC = () => {
     } catch (error) {
       console.error('❌ Error dispatching to n8n:', error);
       const errorMessage = (error as Error).message;
-      if (errorMessage.includes('Template') && errorMessage.includes('not found')) {
-        console.error('❌ Template não encontrado. Verifique se o template ainda existe.');
-      } else {
-        console.error('❌ Erro ao enviar ao n8n:', errorMessage);
+      if (errorMessage.includes('Template') || errorMessage.includes('not found')) {
+        setSelectingTemplateForRun(run.id);
       }
     }
+  };
+
+  const handleSelectTemplateForRun = async (templateId: string) => {
+    if (selectingTemplateForRun) {
+      try {
+        await updateRunTemplate.mutateAsync({
+          runId: selectingTemplateForRun,
+          templateId: templateId
+        });
+        setSelectingTemplateForRun('');
+      } catch (error) {
+        console.error('Error updating template:', error);
+      }
+    }
+  };
+
+  const getTemplateValidationStatus = (run: FollowupRun) => {
+    if (!run.template_id) return 'missing';
+    
+    const templateExists = templates?.find(t => t.id === run.template_id);
+    return templateExists ? 'valid' : 'invalid';
   };
 
   const handleTemplateSubmit = async (templateData: any) => {
@@ -260,15 +288,15 @@ export const Followups: React.FC = () => {
                                   <Play className="h-4 w-4 mr-2" />
                                   Iniciar Envio (Direto)
                                 </DropdownMenuItem>
-                                {run.template_id ? (
+                                {getTemplateValidationStatus(run) === 'valid' ? (
                                   <DropdownMenuItem onClick={() => handleDispatchToN8n(run)}>
                                     <Send className="h-4 w-4 mr-2" />
                                     Enviar via n8n
                                   </DropdownMenuItem>
                                 ) : (
-                                  <DropdownMenuItem disabled>
-                                    <Send className="h-4 w-4 mr-2 opacity-50" />
-                                    Template necessário
+                                  <DropdownMenuItem onClick={() => setSelectingTemplateForRun(run.id)}>
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    {getTemplateValidationStatus(run) === 'missing' ? 'Selecionar template' : 'Template inválido - Selecionar novo'}
                                   </DropdownMenuItem>
                                 )}
                               </>
@@ -279,15 +307,15 @@ export const Followups: React.FC = () => {
                                   <Send className="h-4 w-4 mr-2" />
                                   Continuar Envio (Direto)
                                 </DropdownMenuItem>
-                                {run.template_id ? (
+                                {getTemplateValidationStatus(run) === 'valid' ? (
                                   <DropdownMenuItem onClick={() => handleDispatchToN8n(run)}>
                                     <Send className="h-4 w-4 mr-2" />
                                     Continuar via n8n
                                   </DropdownMenuItem>
                                 ) : (
-                                  <DropdownMenuItem disabled>
-                                    <Send className="h-4 w-4 mr-2 opacity-50" />
-                                    Template necessário
+                                  <DropdownMenuItem onClick={() => setSelectingTemplateForRun(run.id)}>
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    {getTemplateValidationStatus(run) === 'missing' ? 'Selecionar template' : 'Template inválido - Selecionar novo'}
                                   </DropdownMenuItem>
                                 )}
                               </>
@@ -344,15 +372,25 @@ export const Followups: React.FC = () => {
                                 <Play className="h-4 w-4 mr-2" />
                                 {sendMessages.isPending ? 'Iniciando...' : 'Envio Direto'}
                               </Button>
-                              <Button 
-                                onClick={() => handleDispatchToN8n(run)}
-                                disabled={dispatchToN8n.isPending || !run.template_id}
-                                size="sm"
-                              >
-                                <Send className="h-4 w-4 mr-2" />
-                                {dispatchToN8n.isPending ? 'Enviando...' : 
-                                 !run.template_id ? 'Template necessário' : 'Enviar via n8n'}
-                              </Button>
+                              {getTemplateValidationStatus(run) === 'valid' ? (
+                                <Button 
+                                  onClick={() => handleDispatchToN8n(run)}
+                                  disabled={dispatchToN8n.isPending}
+                                  size="sm"
+                                >
+                                  <Send className="h-4 w-4 mr-2" />
+                                  {dispatchToN8n.isPending ? 'Enviando...' : 'Enviar via n8n'}
+                                </Button>
+                              ) : (
+                                <Button 
+                                  onClick={() => setSelectingTemplateForRun(run.id)}
+                                  variant="outline"
+                                  size="sm"
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  {getTemplateValidationStatus(run) === 'missing' ? 'Selecionar template' : 'Template inválido'}
+                                </Button>
+                              )}
                             </div>
                           </div>
                         )}
@@ -373,15 +411,25 @@ export const Followups: React.FC = () => {
                                 <Send className="h-4 w-4 mr-2" />
                                 {sendMessages.isPending ? 'Enviando...' : 'Continuar Direto'}
                               </Button>
-                              <Button 
-                                onClick={() => handleDispatchToN8n(run)}
-                                disabled={dispatchToN8n.isPending || !run.template_id}
-                                size="sm"
-                              >
-                                <Send className="h-4 w-4 mr-2" />
-                                {dispatchToN8n.isPending ? 'Enviando...' : 
-                                 !run.template_id ? 'Template necessário' : 'Continuar via n8n'}
-                              </Button>
+                              {getTemplateValidationStatus(run) === 'valid' ? (
+                                <Button 
+                                  onClick={() => handleDispatchToN8n(run)}
+                                  disabled={dispatchToN8n.isPending}
+                                  size="sm"
+                                >
+                                  <Send className="h-4 w-4 mr-2" />
+                                  {dispatchToN8n.isPending ? 'Enviando...' : 'Continuar via n8n'}
+                                </Button>
+                              ) : (
+                                <Button 
+                                  onClick={() => setSelectingTemplateForRun(run.id)}
+                                  variant="outline"
+                                  size="sm"
+                                >
+                                  <Edit className="h-4 w-4 mr-2" />
+                                  {getTemplateValidationStatus(run) === 'missing' ? 'Selecionar template' : 'Template inválido'}
+                                </Button>
+                              )}
                             </div>
                           </div>
                         )}
@@ -575,6 +623,37 @@ export const Followups: React.FC = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Template Selection Dialog */}
+      <Dialog open={!!selectingTemplateForRun} onOpenChange={() => setSelectingTemplateForRun('')}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Selecionar Template</DialogTitle>
+            <DialogDescription>
+              Escolha um template de mensagem para este follow-up
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {templates?.map((template) => (
+              <Card 
+                key={template.id}
+                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => handleSelectTemplateForRun(template.id)}
+              >
+                <CardContent className="p-4">
+                  <h4 className="font-medium">{template.name}</h4>
+                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                    {template.message}
+                  </p>
+                  <Badge variant="outline" className="mt-2 text-xs">
+                    {template.category}
+                  </Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
