@@ -170,7 +170,7 @@ export const LeadCaptureForm = () => {
     setIsSubmitting(true);
 
     try {
-      await createLead.mutateAsync({
+      const result = await createLead.mutateAsync({
         name: leadData.name,
         business: leadData.business,
         city: leadData.city,
@@ -181,6 +181,15 @@ export const LeadCaptureForm = () => {
         status: "novo",
         score: calculatedScore
       });
+
+      if (result.isDuplicate) {
+        toast({
+          title: "Lead já existe",
+          description: `${leadData.name} já está cadastrado no sistema`,
+          variant: "destructive"
+        });
+        return;
+      }
 
       toast({
         title: "Lead cadastrado com sucesso!",
@@ -199,10 +208,21 @@ export const LeadCaptureForm = () => {
       });
       setPreviewScore(null);
 
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Error creating lead:', error);
+      
+      let errorMessage = "Não foi possível salvar o lead. Tente novamente.";
+      
+      // Handle specific error cases
+      if (error?.code === '23505') {
+        errorMessage = "Este lead já existe no sistema.";
+      } else if (error?.message?.includes('400') || error?.status === 400) {
+        errorMessage = "Dados inválidos. Verifique as informações e tente novamente.";
+      }
+      
       toast({
         title: "Erro ao cadastrar lead",
-        description: "Não foi possível salvar o lead. Tente novamente.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

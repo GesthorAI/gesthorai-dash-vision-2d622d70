@@ -344,8 +344,6 @@ export const useCreateLead = () => {
       const leadWithUserId = {
         ...lead,
         user_id: user.id,
-        normalized_phone: normalizePhone(lead.phone),
-        normalized_email: normalizeEmail(lead.email),
       };
 
       // Simple insert without complex upsert logic to avoid conflicts
