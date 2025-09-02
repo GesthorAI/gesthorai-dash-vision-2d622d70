@@ -42,7 +42,7 @@ const Index = () => {
   };
 
   return (
-    <DashboardLayout currentPage={currentPage} onPageChange={navigateToPage}>
+    <DashboardLayout>
       {renderCurrentPage()}
     </DashboardLayout>
   );

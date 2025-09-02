@@ -35,7 +35,7 @@ import { Separator } from "@/components/ui/separator";
 import { useTheme } from "next-themes";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/components/Auth/AuthProvider";
+import { useAuth } from "@/hooks/useAuth";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;

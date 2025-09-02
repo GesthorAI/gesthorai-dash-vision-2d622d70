@@ -20,6 +20,7 @@ import { WhatsAppConnectDialog } from "@/components/WhatsApp/WhatsAppConnectDial
 const Operations = () => {
   const [activeTab, setActiveTab] = useState("bulk");
   const [showFollowupWizard, setShowFollowupWizard] = useState(false);
+  const [showWhatsAppDialog, setShowWhatsAppDialog] = useState(false);
   const globalFilters = useFilters();
   const { pendingFilters, clearPendingFilters } = useNavigation();
   const { selectedLeads, clearSelection } = useSelection();
@@ -210,7 +211,17 @@ const Operations = () => {
               <p className="text-muted-foreground mb-4">
                 Configure sua instância WhatsApp para envio automático de mensagens de follow-up.
               </p>
-              <WhatsAppConnectDialog />
+              <Button onClick={() => setShowWhatsAppDialog(true)}>
+                Conectar WhatsApp
+              </Button>
+              <WhatsAppConnectDialog 
+                isOpen={showWhatsAppDialog}
+                onClose={() => setShowWhatsAppDialog(false)}
+                onInstanceConnected={() => {
+                  setShowWhatsAppDialog(false);
+                  // You can add any additional logic here when instance is connected
+                }}
+              />
             </Card>
             
             <Card className="p-6">
