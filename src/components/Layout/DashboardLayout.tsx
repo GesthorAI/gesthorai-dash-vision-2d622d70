@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
-import { Menu, LogOut, Settings, Eye } from "lucide-react";
+import { Menu, LogOut, Settings, Eye, BarChart3, Search, CheckSquare, MessageSquare, Filter, Award, Cog, Brain, Monitor, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUISettings } from "@/hooks/useUISettings";
 import { RealtimeNotifications } from "@/components/Notifications/RealtimeNotifications";
