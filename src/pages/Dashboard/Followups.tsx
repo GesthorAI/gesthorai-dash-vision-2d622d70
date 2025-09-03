@@ -5,6 +5,9 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { 
   Plus, 
   MessageSquare, 
@@ -19,7 +22,8 @@ import {
   MoreVertical,
   Edit,
   Copy,
-  Trash2
+  Trash2,
+  Monitor
 } from 'lucide-react';
 import { FollowupWizard } from '@/components/Followups/FollowupWizard';
 import { 
@@ -38,16 +42,17 @@ import {
   FollowupRun
 } from '@/hooks/useFollowups';
 import { TemplateForm } from '@/components/Followups/TemplateForm';
+import { useUISettings } from '@/hooks/useUISettings';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 export const Followups: React.FC = () => {
   const [showWizard, setShowWizard] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  
+  const { settings: uiSettings, updateSettings: updateUISettings } = useUISettings();
   const [deletingTemplate, setDeletingTemplate] = useState<string>('');
   const [selectingTemplateForRun, setSelectingTemplateForRun] = useState<string>('');
   const [deletingRun, setDeletingRun] = useState<string>('');
@@ -217,28 +222,66 @@ export const Followups: React.FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className={`container mx-auto space-y-6 ${uiSettings.compactMode ? 'p-4' : 'p-6'}`}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Follow-ups WhatsApp</h1>
-          <p className="text-muted-foreground">
-            Automatize e monitore seus follow-ups via WhatsApp
-          </p>
+          <h1 className={`font-bold ${uiSettings.compactMode ? 'text-2xl' : 'text-3xl'}`}>
+            Follow-ups WhatsApp
+          </h1>
+          {!uiSettings.compactMode && (
+            <p className="text-muted-foreground">
+              Automatize e monitore seus follow-ups via WhatsApp
+            </p>
+          )}
         </div>
         
         <div className="flex gap-2">
-          <Dialog open={showTemplateForm} onOpenChange={setShowTemplateForm}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="lg">
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Template
+          {/* Display Settings for Follow-ups */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Monitor className="h-4 w-4 mr-2" />
+                Display
               </Button>
-            </DialogTrigger>
-          </Dialog>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-64" align="end">
+              <div className="p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Ações Inline</span>
+                  <Switch
+                    checked={uiSettings.showInlineActions}
+                    onCheckedChange={(checked) => 
+                      updateUISettings({ showInlineActions: checked })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Aba Templates</span>
+                  <Switch
+                    checked={uiSettings.showTemplatesTab}
+                    onCheckedChange={(checked) => 
+                      updateUISettings({ showTemplatesTab: checked })
+                    }
+                  />
+                </div>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {uiSettings.showTemplatesTab && (
+            <Dialog open={showTemplateForm} onOpenChange={setShowTemplateForm}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size={uiSettings.compactMode ? "sm" : "lg"}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Novo Template
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          )}
           
           <Dialog open={showWizard} onOpenChange={setShowWizard}>
             <DialogTrigger asChild>
-              <Button size="lg">
+              <Button size={uiSettings.compactMode ? "sm" : "lg"}>
                 <Plus className="h-4 w-4 mr-2" />
                 Novo Follow-up
               </Button>
@@ -486,6 +529,7 @@ export const Followups: React.FC = () => {
           )}
         </TabsContent>
 
+        {uiSettings.showTemplatesTab && (
         <TabsContent value="templates" className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-semibold">Templates de Mensagem</h2>
@@ -565,6 +609,7 @@ export const Followups: React.FC = () => {
             </Card>
           )}
         </TabsContent>
+        )}
       </Tabs>
 
       {/* Run Details Dialog */}

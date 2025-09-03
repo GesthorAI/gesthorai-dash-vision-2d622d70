@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Brain, BarChart3, Filter, Award, Settings, Search, Menu, X, User, LogOut, CheckSquare, MessageSquare, Cog } from "lucide-react";
+import { Brain, BarChart3, Filter, Award, Settings, Search, Menu, X, User, LogOut, CheckSquare, MessageSquare, Cog, Monitor } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useUISettings } from "@/hooks/useUISettings";
 import { RealtimeNotifications } from "@/components/Notifications/RealtimeNotifications";
 
 interface DashboardLayoutProps {
@@ -29,6 +31,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { toast } = useToast();
+  const { settings: uiSettings, updateSettings: updateUISettings } = useUISettings();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -91,9 +94,60 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
               })}
             </nav>
 
-            {/* User Profile Dropdown */}
+            {/* Display Settings & User Profile */}
             <div className="flex items-center gap-2">
               <RealtimeNotifications />
+              
+              {/* Display Settings Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm">
+                    <Monitor className="h-4 w-4 mr-2" />
+                    Display
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-64" align="end">
+                  <div className="p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Modo Compacto</span>
+                      <Switch
+                        checked={uiSettings.compactMode}
+                        onCheckedChange={(checked) => 
+                          updateUISettings({ compactMode: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Estatísticas</span>
+                      <Switch
+                        checked={uiSettings.showStats}
+                        onCheckedChange={(checked) => 
+                          updateUISettings({ showStats: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Progresso</span>
+                      <Switch
+                        checked={uiSettings.showProgress}
+                        onCheckedChange={(checked) => 
+                          updateUISettings({ showProgress: checked })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Dicas de Ajuda</span>
+                      <Switch
+                        checked={uiSettings.showHelpHints}
+                        onCheckedChange={(checked) => 
+                          updateUISettings({ showHelpHints: checked })
+                        }
+                      />
+                    </div>
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
@@ -183,7 +237,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto p-6">
+      <main className={`container mx-auto ${uiSettings.compactMode ? 'p-4' : 'p-6'}`}>
         {children}
       </main>
     </div>
