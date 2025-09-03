@@ -481,6 +481,47 @@ export const useDispatchToN8n = () => {
   });
 };
 
+// Hook for deleting a followup run
+export const useDeleteFollowupRun = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (runId: string) => {
+      // First delete all run items
+      const { error: itemsError } = await supabase
+        .from('followup_run_items')
+        .delete()
+        .eq('run_id', runId);
+
+      if (itemsError) throw itemsError;
+
+      // Then delete the run itself
+      const { error } = await supabase
+        .from('followup_runs')
+        .delete()
+        .eq('id', runId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['followup-runs'] });
+      queryClient.invalidateQueries({ queryKey: ['followup-run-items'] });
+      toast({
+        title: 'Follow-up excluído',
+        description: 'Follow-up foi excluído com sucesso!',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Erro',
+        description: `Falha ao excluir follow-up: ${error.message}`,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
 // Hook for getting run items
 export const useFollowupRunItems = (runId: string) => {
   return useQuery({

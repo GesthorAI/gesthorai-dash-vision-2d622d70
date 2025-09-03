@@ -31,6 +31,7 @@ import {
   useCreateTemplate,
   useUpdateTemplate,
   useDeleteTemplate,
+  useDeleteFollowupRun,
   useDispatchToN8n,
   useValidateTemplate,
   useUpdateFollowupRunTemplate,
@@ -49,6 +50,7 @@ export const Followups: React.FC = () => {
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<string>('');
   const [selectingTemplateForRun, setSelectingTemplateForRun] = useState<string>('');
+  const [deletingRun, setDeletingRun] = useState<string>('');
 
   const { data: runs, isLoading: runsLoading } = useFollowupRuns();
   const { data: templates } = useMessageTemplates();
@@ -61,6 +63,7 @@ export const Followups: React.FC = () => {
   const createTemplate = useCreateTemplate();
   const updateTemplate = useUpdateTemplate();
   const deleteTemplate = useDeleteTemplate();
+  const deleteRun = useDeleteFollowupRun();
 
   // Create default templates if none exist
   useEffect(() => {
@@ -194,6 +197,13 @@ export const Followups: React.FC = () => {
     }
   };
 
+  const handleDeleteRun = async () => {
+    if (deletingRun) {
+      await deleteRun.mutateAsync(deletingRun);
+      setDeletingRun('');
+    }
+  };
+
   if (runsLoading) {
     return (
       <div className="container mx-auto p-6">
@@ -216,13 +226,23 @@ export const Followups: React.FC = () => {
           </p>
         </div>
         
-        <Dialog open={showWizard} onOpenChange={setShowWizard}>
-          <DialogTrigger asChild>
-            <Button size="lg">
-              <Plus className="h-4 w-4 mr-2" />
-              Novo Follow-up
-            </Button>
-          </DialogTrigger>
+        <div className="flex gap-2">
+          <Dialog open={showTemplateForm} onOpenChange={setShowTemplateForm}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="lg">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Template
+              </Button>
+            </DialogTrigger>
+          </Dialog>
+          
+          <Dialog open={showWizard} onOpenChange={setShowWizard}>
+            <DialogTrigger asChild>
+              <Button size="lg">
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Follow-up
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Criar Follow-up</DialogTitle>
@@ -233,6 +253,7 @@ export const Followups: React.FC = () => {
             <FollowupWizard onClose={() => setShowWizard(false)} />
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Tabs defaultValue="runs" className="space-y-6">
@@ -317,11 +338,20 @@ export const Followups: React.FC = () => {
                                     <Edit className="h-4 w-4 mr-2" />
                                     {getTemplateValidationStatus(run) === 'missing' ? 'Selecionar template' : 'Template inválido - Selecionar novo'}
                                   </DropdownMenuItem>
-                                )}
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                                 )}
+                               </>
+                             )}
+                             <DropdownMenuSeparator />
+                             <DropdownMenuItem 
+                               className="text-red-600"
+                               onClick={() => setDeletingRun(run.id)}
+                               disabled={run.status === 'sending'}
+                             >
+                               <Trash2 className="h-4 w-4 mr-2" />
+                               Excluir
+                             </DropdownMenuItem>
+                           </DropdownMenuContent>
+                         </DropdownMenu>
                       </div>
                     </CardHeader>
                     
@@ -603,11 +633,11 @@ export const Followups: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Template Confirmation Dialog */}
       <AlertDialog open={!!deletingTemplate} onOpenChange={() => setDeletingTemplate('')}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogTitle>Confirmar Exclusão do Template</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir este template? Esta ação não pode ser desfeita.
             </AlertDialogDescription>
@@ -619,6 +649,28 @@ export const Followups: React.FC = () => {
               className="bg-red-600 hover:bg-red-700"
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Follow-up Confirmation Dialog */}
+      <AlertDialog open={!!deletingRun} onOpenChange={() => setDeletingRun('')}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão do Follow-up</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir este follow-up? Todas as mensagens e dados relacionados serão removidos permanentemente. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteRun}
+              className="bg-red-600 hover:bg-red-700"
+              disabled={deleteRun.isPending}
+            >
+              {deleteRun.isPending ? 'Excluindo...' : 'Excluir'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
