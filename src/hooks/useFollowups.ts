@@ -529,10 +529,7 @@ export const useFollowupRunItems = (runId: string) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('followup_run_items')
-        .select(`
-          *,
-          leads!inner(name, business, phone)
-        `)
+        .select('*')
         .eq('run_id', runId)
         .order('created_at', { ascending: false });
 

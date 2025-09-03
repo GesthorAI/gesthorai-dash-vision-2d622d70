@@ -342,14 +342,14 @@ export const Followups: React.FC = () => {
                                </>
                              )}
                              <DropdownMenuSeparator />
-                             <DropdownMenuItem 
-                               className="text-red-600"
-                               onClick={() => setDeletingRun(run.id)}
-                               disabled={run.status === 'sending'}
-                             >
-                               <Trash2 className="h-4 w-4 mr-2" />
-                               Excluir
-                             </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-red-600"
+                                onClick={() => setDeletingRun(run.id)}
+                                disabled={deleteRun.isPending}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />
+                                Excluir
+                              </DropdownMenuItem>
                            </DropdownMenuContent>
                          </DropdownMenu>
                       </div>
@@ -660,7 +660,12 @@ export const Followups: React.FC = () => {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar Exclusão do Follow-up</AlertDialogTitle>
             <AlertDialogDescription>
-              Tem certeza que deseja excluir este follow-up? Todas as mensagens e dados relacionados serão removidos permanentemente. Esta ação não pode ser desfeita.
+              {(() => {
+                const selectedRun = runs?.find(r => r.id === deletingRun);
+                return selectedRun?.status === 'sending' 
+                  ? 'Ao excluir, o envio em andamento será interrompido e todos os itens serão removidos permanentemente. Esta ação não pode ser desfeita.'
+                  : 'Tem certeza que deseja excluir este follow-up? Todas as mensagens e dados relacionados serão removidos permanentemente. Esta ação não pode ser desfeita.';
+              })()}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -670,7 +675,11 @@ export const Followups: React.FC = () => {
               className="bg-red-600 hover:bg-red-700"
               disabled={deleteRun.isPending}
             >
-              {deleteRun.isPending ? 'Excluindo...' : 'Excluir'}
+              {(() => {
+                if (deleteRun.isPending) return 'Excluindo...';
+                const selectedRun = runs?.find(r => r.id === deletingRun);
+                return selectedRun?.status === 'sending' ? 'Parar e Excluir' : 'Excluir';
+              })()}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
