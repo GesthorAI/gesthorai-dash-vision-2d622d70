@@ -18,19 +18,18 @@ interface DashboardLayoutProps {
   onPageChange: (page: string) => void;
 }
 
-const navigationItems = [
-  { id: "overview", label: "Visão Geral", icon: BarChart3 },
-  { id: "search", label: "Busca de Leads", icon: Search },
-  { id: "tasks", label: "Tarefas", icon: CheckSquare },
-  { id: "followups", label: "Follow-ups", icon: MessageSquare },
-  { id: "funnel", label: "Funil", icon: Filter },
-  { id: "quality", label: "Qualidade & Score", icon: Award },
-  { id: "analytics", label: "Analytics", icon: BarChart3 },
-  { id: "operations", label: "Operacional", icon: Settings },
-  { id: "ai-settings", label: "Configurações IA", icon: Cog },
-];
-
 export const DashboardLayout = ({ children, currentPage, onPageChange }: DashboardLayoutProps) => {
+  const navigationItems = [
+    { id: "overview", label: "Visão Geral", icon: BarChart3 },
+    { id: "search", label: "Busca de Leads", icon: Search },
+    { id: "tasks", label: "Tarefas", icon: CheckSquare },
+    { id: "followups", label: "Follow-ups", icon: MessageSquare },
+    { id: "funnel", label: "Funil", icon: Filter },
+    { id: "quality", label: "Qualidade & Score", icon: Award },
+    { id: "analytics", label: "Analytics", icon: BarChart3 },
+    { id: "operations", label: "Operacional", icon: Settings },
+    { id: "ai-settings", label: "Configurações IA", icon: Cog },
+  ];
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPagesConfig, setShowPagesConfig] = useState(false);
   const { user, signOut } = useAuth();
@@ -127,6 +126,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
                     Display
                   </Button>
                 </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-64" align="end">
                   <div className="p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium">Modo Compacto</span>
@@ -174,6 +174,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
                       Configurar Páginas
                     </Button>
                   </div>
+                </DropdownMenuContent>
               </DropdownMenu>
 
               <DropdownMenu>
