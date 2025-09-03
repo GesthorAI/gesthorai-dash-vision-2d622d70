@@ -33,7 +33,18 @@ serve(async (req) => {
     }
 
     const payload = await req.json();
-    console.log('Received webhook from n8n:', JSON.stringify(payload, null, 2));
+    console.log('📨 Received webhook from n8n:', {
+      runId: payload.runId,
+      status: payload.status,
+      resultsCount: payload.results?.length || 0,
+      hasTotals: !!(payload.totalSent || payload.totalFailed),
+      payloadSize: JSON.stringify(payload).length
+    });
+    
+    // Log full payload only in development/debug mode
+    if (payload.debug) {
+      console.log('🔍 Full payload debug:', JSON.stringify(payload, null, 2));
+    }
 
     const { runId, status, results, totalSent, totalFailed, error } = payload;
 
@@ -69,7 +80,14 @@ serve(async (req) => {
 
     // Process individual results if provided
     if (results && Array.isArray(results)) {
-      console.log(`Processing ${results.length} individual results`);
+      console.log(`📋 Processing ${results.length} individual results:`, {
+        statusBreakdown: results.reduce((acc, r) => {
+          acc[r.status] = (acc[r.status] || 0) + 1;
+          return acc;
+        }, {}),
+        hasMessages: results.filter(r => r.message).length,
+        hasErrors: results.filter(r => r.errorMessage).length
+      });
 
       for (const result of results) {
         const { leadId, status: itemStatus, message, errorMessage, sentAt } = result;
@@ -94,7 +112,9 @@ serve(async (req) => {
           });
 
         if (itemError) {
-          console.error(`Error updating item for lead ${leadId}:`, itemError);
+          console.error(`❌ Error updating item for lead ${leadId}:`, itemError);
+        } else {
+          console.log(`✅ Updated item for lead ${leadId}:`, { status: itemStatus, hasMessage: !!message });
         }
 
         // Create communication record if message was sent
@@ -141,7 +161,13 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Successfully processed webhook for run ${runId}`);
+    console.log(`✅ Successfully processed webhook for run ${runId}:`, {
+      finalStatus: status,
+      resultsProcessed: results?.length || 0,
+      totalSent: totalSent || 0,
+      totalFailed: totalFailed || 0,
+      communicationsCreated: results?.filter(r => r.status === 'sent').length || 0
+    });
 
     return new Response(JSON.stringify({
       success: true,

@@ -24,9 +24,15 @@ serve(async (req) => {
     const { runId, templateId, filters, personaConfig } = await req.json();
 
     console.log('=== N8N FOLLOWUP DISPATCH STARTED ===');
-    console.log('Request payload:', { runId, templateId, filters, personaConfig });
-    console.log('N8N Webhook URL:', n8nWebhookUrl);
-    console.log('Using webhook token:', webhookToken ? 'Yes' : 'No');
+    console.log('📋 Request payload:', { 
+      runId, 
+      templateId, 
+      hasFilters: Object.keys(filters || {}).length > 0,
+      hasPersonaConfig: !!personaConfig,
+      filtersKeys: Object.keys(filters || {})
+    });
+    console.log('🔗 N8N Webhook URL:', n8nWebhookUrl);
+    console.log('🔐 Using webhook token:', webhookToken ? 'Yes' : 'No');
 
     // Get the followup run details
     const { data: run, error: runError } = await supabase
@@ -44,7 +50,9 @@ serve(async (req) => {
       id: run.id, 
       name: run.name, 
       status: run.status, 
-      userId: run.user_id 
+      userId: run.user_id,
+      hasTemplateId: !!run.template_id,
+      currentTotalLeads: run.total_leads || 0
     });
 
     // Validate required parameters
@@ -85,7 +93,10 @@ serve(async (req) => {
     console.log('✅ Retrieved template:', { 
       id: template.id, 
       name: template.name, 
-      variablesCount: template.variables?.length || 0 
+      category: template.category,
+      variablesCount: template.variables?.length || 0,
+      messageLength: template.message?.length || 0,
+      variables: template.variables || []
     });
 
     // Build filter query for leads
@@ -125,12 +136,20 @@ serve(async (req) => {
     }
 
     console.log(`✅ Found ${leads?.length || 0} leads matching filters:`, {
-      niche: filters.niche || 'Any',
-      city: filters.city || 'Any',
-      status: filters.status || 'Any',
-      minScore: filters.minScore || 'No minimum',
-      maxDaysOld: filters.maxDaysOld || 'No limit',
-      excludeContacted: filters.excludeContacted || false
+      appliedFilters: {
+        niche: filters.niche || 'Any',
+        city: filters.city || 'Any',
+        status: filters.status || 'Any',
+        minScore: filters.minScore || 'No minimum',
+        maxDaysOld: filters.maxDaysOld || 'No limit',
+        excludeContacted: filters.excludeContacted || false
+      },
+      leadsSample: leads?.slice(0, 3).map(l => ({ 
+        id: l.id, 
+        name: l.name, 
+        business: l.business,
+        hasWhatsApp: !!l.whatsapp_number 
+      })) || []
     });
 
     // Update run status to sending
@@ -146,7 +165,11 @@ serve(async (req) => {
     if (updateError) {
       console.error('❌ Error updating run status:', updateError);
     } else {
-      console.log('✅ Updated run status to "sending"');
+      console.log('✅ Updated run status to "sending"', {
+        runId,
+        totalLeads: leads?.length || 0,
+        startedAt: new Date().toISOString()
+      });
     }
 
     // Prepare payload for n8n
@@ -177,8 +200,14 @@ serve(async (req) => {
 
     // Send to n8n webhook
     console.log('🚀 Sending payload to n8n webhook:', n8nWebhookUrl);
-    console.log('Payload size:', JSON.stringify(n8nPayload).length, 'characters');
-    console.log('Leads to process:', leads?.length || 0);
+    console.log('📦 Payload summary:', {
+      payloadSizeBytes: JSON.stringify(n8nPayload).length,
+      leadsCount: leads?.length || 0,
+      templateVariables: template.variables?.length || 0,
+      hasPersonaConfig: !!personaConfig,
+      personaName: personaConfig?.name || n8nPayload.persona.name,
+      messageDelay: personaConfig?.messageDelay || n8nPayload.persona.messageDelay
+    });
     
     const n8nResponse = await fetch(n8nWebhookUrl, {
       method: 'POST',
@@ -202,10 +231,12 @@ serve(async (req) => {
 
     const n8nResult = await n8nResponse.json();
     console.log('✅ N8N webhook success:', {
-      status: n8nResponse.status,
+      httpStatus: n8nResponse.status,
       workflowId: n8nResult.workflowId || 'Unknown',
-      executionId: n8nResult.executionId || 'Unknown',
-      message: n8nResult.message || 'No message'
+      executionId: n8nResult.executionId || 'Unknown', 
+      message: n8nResult.message || 'No message',
+      responseSize: JSON.stringify(n8nResult).length,
+      processingStarted: !!n8nResult.processingStarted
     });
 
     console.log('=== N8N FOLLOWUP DISPATCH COMPLETED ===');

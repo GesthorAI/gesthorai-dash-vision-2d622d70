@@ -1,0 +1,117 @@
+{
+  "name": "WhatsApp Follow-up Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "followup-webhook",
+        "responseMode": "responseNode",
+        "authentication": "headerAuth"
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "webhook-auth-credential",
+          "name": "Webhook Bearer Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrair dados do payload\nconst { runId, leads, template, persona, webhookCallbackUrl, webhookToken } = $json;\n\nconsole.log(`🚀 Starting processing for run ${runId} with ${leads.length} leads`);\n\n// Validações básicas\nif (!runId || !leads || !template || !webhookCallbackUrl) {\n  throw new Error('Missing required payload fields');\n}\n\n// Inicializar contadores\nlet sentCount = 0;\nlet failedCount = 0;\nconst results = [];\n\n// Função para interpolação de variáveis\nfunction interpolateMessage(template, lead) {\n  let message = template.message;\n  \n  // Substituir variáveis conhecidas\n  const replacements = {\n    '{{name}}': lead.name || '',\n    '{{business}}': lead.business || '',\n    '{{city}}': lead.city || '',\n    '{{niche}}': lead.niche || '',\n    '{{phone}}': lead.phone || '',\n    '{{score}}': String(lead.score || 0)\n  };\n  \n  // Aplicar substituições\n  for (const [variable, value] of Object.entries(replacements)) {\n    message = message.replace(new RegExp(variable.replace(/[{}]/g, '\\\\$&'), 'g'), value);\n  }\n  \n  return message;\n}\n\n// Função para enviar callback de progresso\nasync function sendProgressCallback(results) {\n  try {\n    const response = await $http.request({\n      method: 'POST',\n      url: webhookCallbackUrl,\n      headers: {\n        'Authorization': `Bearer ${webhookToken}`,\n        'Content-Type': 'application/json'\n      },\n      body: {\n        runId,\n        status: 'processing',\n        results: results\n      }\n    });\n    \n    console.log(`✅ Progress callback sent for ${results.length} results`);\n  } catch (error) {\n    console.error('❌ Failed to send progress callback:', error.message);\n  }\n}\n\n// Processar leads em lotes\nconst batchSize = 10; // Processar 10 leads por vez\nconst messageDelay = (persona.messageDelay || 3) * 1000; // Delay em ms\n\nfor (let i = 0; i < leads.length; i += batchSize) {\n  const batch = leads.slice(i, i + batchSize);\n  const batchResults = [];\n  \n  console.log(`📦 Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(leads.length/batchSize)} (${batch.length} leads)`);\n  \n  for (const lead of batch) {\n    try {\n      // Interpolar mensagem\n      const message = interpolateMessage(template, lead);\n      \n      // Verificar se lead tem WhatsApp\n      if (!lead.whatsapp_number) {\n        console.log(`⚠️ Lead ${lead.id} (${lead.name}) has no WhatsApp number`);\n        batchResults.push({\n          leadId: lead.id,\n          status: 'failed',\n          message: message,\n          errorMessage: 'WhatsApp number not available',\n          sentAt: null\n        });\n        failedCount++;\n        continue;\n      }\n      \n      // Simular envio WhatsApp (substitua pela implementação real)\n      // Para demonstração, vamos simular 90% de sucesso\n      const success = Math.random() > 0.1;\n      \n      if (success) {\n        // Simular messageId retornado pela API\n        const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;\n        \n        console.log(`✅ Message sent to ${lead.name} (${lead.whatsapp_number}): ${messageId}`);\n        \n        batchResults.push({\n          leadId: lead.id,\n          status: 'sent',\n          message: message,\n          errorMessage: null,\n          sentAt: new Date().toISOString(),\n          messageId: messageId\n        });\n        sentCount++;\n      } else {\n        // Simular erro\n        const errorMessage = 'WhatsApp delivery failed - contact not available';\n        \n        console.log(`❌ Failed to send to ${lead.name}: ${errorMessage}`);\n        \n        batchResults.push({\n          leadId: lead.id,\n          status: 'failed',\n          message: message,\n          errorMessage: errorMessage,\n          sentAt: null\n        });\n        failedCount++;\n      }\n      \n      // Delay entre mensagens\n      if (messageDelay > 0) {\n        await new Promise(resolve => setTimeout(resolve, messageDelay));\n      }\n      \n    } catch (error) {\n      console.error(`❌ Error processing lead ${lead.id}:`, error.message);\n      \n      batchResults.push({\n        leadId: lead.id,\n        status: 'failed',\n        message: '',\n        errorMessage: `Processing error: ${error.message}`,\n        sentAt: null\n      });\n      failedCount++;\n    }\n  }\n  \n  // Enviar callback de progresso para o lote\n  if (batchResults.length > 0) {\n    await sendProgressCallback(batchResults);\n    results.push(...batchResults);\n  }\n  \n  // Pausa entre lotes para não sobrecarregar\n  if (i + batchSize < leads.length) {\n    console.log('⏳ Pausing between batches...');\n    await new Promise(resolve => setTimeout(resolve, 2000));\n  }\n}\n\nconsole.log(`🎯 Processing completed: ${sentCount} sent, ${failedCount} failed`);\n\n// Retornar dados para próximo nó\nreturn {\n  runId,\n  results,\n  sentCount,\n  failedCount,\n  webhookCallbackUrl,\n  webhookToken\n};"
+      },
+      "id": "process-leads",
+      "name": "Process Leads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enviar callback final de conclusão\nconst { runId, sentCount, failedCount, webhookCallbackUrl, webhookToken } = $json;\n\ntry {\n  const response = await $http.request({\n    method: 'POST',\n    url: webhookCallbackUrl,\n    headers: {\n      'Authorization': `Bearer ${webhookToken}`,\n      'Content-Type': 'application/json'\n    },\n    body: {\n      runId,\n      status: 'completed',\n      totalSent: sentCount,\n      totalFailed: failedCount\n    }\n  });\n  \n  console.log(`✅ Final completion callback sent for run ${runId}`);\n  console.log(`📊 Final stats: ${sentCount} sent, ${failedCount} failed`);\n  \n  return {\n    success: true,\n    runId,\n    sentCount,\n    failedCount,\n    message: 'Workflow completed successfully'\n  };\n  \n} catch (error) {\n  console.error('❌ Failed to send completion callback:', error.message);\n  \n  return {\n    success: false,\n    runId,\n    error: error.message,\n    message: 'Completion callback failed'\n  };\n}"
+      },
+      "id": "send-completion",
+      "name": "Send Completion Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Tratar erro e enviar callback de falha\nconst inputData = $input.all();\nconst webhookData = inputData.find(item => item.json.webhookCallbackUrl);\n\nif (!webhookData) {\n  console.error('❌ No webhook data found for error callback');\n  return { error: 'No webhook data available' };\n}\n\nconst { runId, webhookCallbackUrl, webhookToken } = webhookData.json;\nconst error = $execution.error || { message: 'Unknown workflow error' };\n\nconsole.log(`❌ Workflow failed for run ${runId}: ${error.message}`);\n\ntry {\n  const response = await $http.request({\n    method: 'POST',\n    url: webhookCallbackUrl,\n    headers: {\n      'Authorization': `Bearer ${webhookToken}`,\n      'Content-Type': 'application/json'\n    },\n    body: {\n      runId,\n      status: 'failed',\n      error: error.message || 'Workflow execution failed'\n    }\n  });\n  \n  console.log(`✅ Error callback sent for run ${runId}`);\n  \n} catch (callbackError) {\n  console.error('❌ Failed to send error callback:', callbackError.message);\n}\n\nreturn {\n  success: false,\n  runId,\n  error: error.message,\n  message: 'Workflow failed'\n};"
+      },
+      "id": "handle-error",
+      "name": "Handle Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,  
+      "position": [460, 480],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}"
+      },
+      "id": "webhook-response",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Process Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Leads": {
+      "main": [
+        [
+          {
+            "node": "Send Completion Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Completion Callback": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle Error": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "errorWorkflow": {
+      "errorWorkflow": "Handle Error"
+    }
+  }
+}
