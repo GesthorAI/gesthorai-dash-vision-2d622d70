@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { DashboardLayout } from "@/components/Layout/DashboardLayout";
 import { useNavigation } from "@/hooks/useNavigation";
+import { useUISettings } from "@/hooks/useUISettings";
 import { Overview } from "@/pages/Dashboard/Overview";
 import { LeadSearch } from "@/pages/Dashboard/LeadSearch";
 import { Funnel } from "@/pages/Dashboard/Funnel";
@@ -15,6 +16,27 @@ import { AISettings } from "@/pages/Settings/AISettings";
 
 const Index = () => {
   const { currentPage, navigateToPage } = useNavigation();
+  const { settings } = useUISettings();
+
+  // Redirect to overview if current page is hidden
+  useEffect(() => {
+    const pageVisibilityMap: Record<string, keyof typeof settings.pagesVisibility> = {
+      'overview': 'showOverview',
+      'search': 'showSearch', 
+      'tasks': 'showTasks',
+      'followups': 'showFollowups',
+      'operations': 'showOperations',
+      'ai-settings': 'showAISettings',
+      'funnel': 'showFunnel',
+      'quality': 'showQuality',
+      'analytics': 'showAnalytics',
+    };
+
+    const visibilityKey = pageVisibilityMap[currentPage];
+    if (visibilityKey && !settings.pagesVisibility[visibilityKey]) {
+      navigateToPage('overview');
+    }
+  }, [currentPage, settings.pagesVisibility, navigateToPage]);
 
   const renderCurrentPage = () => {
     switch (currentPage) {

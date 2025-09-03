@@ -50,6 +50,8 @@ export const Followups: React.FC = () => {
   const [showWizard, setShowWizard] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [showDispatchDialog, setShowDispatchDialog] = useState(false);
+  const [selectedRunForDispatch, setSelectedRunForDispatch] = useState<FollowupRun | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   
   const { settings: uiSettings, updateSettings: updateUISettings } = useUISettings();
@@ -123,7 +125,6 @@ export const Followups: React.FC = () => {
     }
 
     try {
-      // Validate template exists before dispatching
       await validateTemplate.mutateAsync(run.template_id);
       
       console.log('🚀 Dispatching to n8n:', { runId: run.id, templateId: run.template_id });
@@ -146,6 +147,19 @@ export const Followups: React.FC = () => {
       }
     }
   };
+
+  const handleDispatchSelected = async () => {
+    if (!selectedRunForDispatch) return;
+    
+    await handleDispatchToN8n(selectedRunForDispatch);
+    setShowDispatchDialog(false);
+    setSelectedRunForDispatch(null);
+  };
+
+  // Get available runs for dispatch
+  const dispatchableRuns = runs?.filter(run => 
+    run.status === 'prepared' || run.status === 'sending'
+  ) || [];
 
   const handleSelectTemplateForRun = async (templateId: string) => {
     if (selectingTemplateForRun) {
@@ -236,7 +250,21 @@ export const Followups: React.FC = () => {
         </div>
         
         <div className="flex gap-2">
-          {/* Display Settings for Follow-ups */}
+          <Button onClick={() => setShowWizard(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Novo Follow-up
+          </Button>
+
+          <Button 
+            onClick={() => setShowDispatchDialog(true)} 
+            variant="default"
+            className="gap-2"
+            disabled={!runs || runs.length === 0 || !runs.some(run => run.status === 'prepared' || run.status === 'sending')}
+          >
+            <Send className="h-4 w-4" />
+            Disparar Mensagens
+          </Button>
+          
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -264,28 +292,22 @@ export const Followups: React.FC = () => {
                     }
                   />
                 </div>
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
-          {uiSettings.showTemplatesTab && (
-            <Dialog open={showTemplateForm} onOpenChange={setShowTemplateForm}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size={uiSettings.compactMode ? "sm" : "lg"}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setShowTemplateForm(true)}
+                  className="w-full mt-2"
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   Novo Template
                 </Button>
-              </DialogTrigger>
-            </Dialog>
-          )}
-          
-          <Dialog open={showWizard} onOpenChange={setShowWizard}>
-            <DialogTrigger asChild>
-              <Button size={uiSettings.compactMode ? "sm" : "lg"}>
-                <Plus className="h-4 w-4 mr-2" />
-                Novo Follow-up
-              </Button>
-            </DialogTrigger>
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+        
+        {/* Follow-up Wizard Dialog */}
+        <Dialog open={showWizard} onOpenChange={setShowWizard}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Criar Follow-up</DialogTitle>
@@ -296,7 +318,6 @@ export const Followups: React.FC = () => {
             <FollowupWizard onClose={() => setShowWizard(false)} />
           </DialogContent>
         </Dialog>
-        </div>
       </div>
 
       <Tabs defaultValue="runs" className="space-y-6">

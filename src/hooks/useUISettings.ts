@@ -9,6 +9,23 @@ export interface UISettings {
   showHelpHints: boolean;
   showInlineActions: boolean;
   showTemplatesTab: boolean;
+  pagesVisibility: {
+    showOverview: boolean;
+    showSearch: boolean;
+    showTasks: boolean;
+    showFollowups: boolean;
+    showOperations: boolean;
+    showAISettings: boolean;
+    showFunnel: boolean;
+    showQuality: boolean;
+    showAnalytics: boolean;
+  };
+  operationsTabsVisibility: {
+    showBulk: boolean;
+    showAutomation: boolean;
+    showTeam: boolean;
+    showSettings: boolean;
+  };
 }
 
 const DEFAULT_UI_SETTINGS: UISettings = {
@@ -18,6 +35,23 @@ const DEFAULT_UI_SETTINGS: UISettings = {
   showHelpHints: true,
   showInlineActions: true,
   showTemplatesTab: true,
+  pagesVisibility: {
+    showOverview: true,
+    showSearch: true,
+    showTasks: true,
+    showFollowups: true,
+    showOperations: true,
+    showAISettings: true,
+    showFunnel: false,
+    showQuality: false,
+    showAnalytics: false,
+  },
+  operationsTabsVisibility: {
+    showBulk: false,
+    showAutomation: false,
+    showTeam: true,
+    showSettings: true,
+  },
 };
 
 export const useUISettings = () => {
