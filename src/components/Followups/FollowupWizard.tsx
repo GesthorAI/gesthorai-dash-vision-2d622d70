@@ -88,6 +88,8 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
           useJinaAI: false,
           messageDelay: 3
         });
+        // Clear previous AI messages when persona changes
+        setAiGeneratedMessages([]);
       }
     }
   }, [selectedPersona, personas]);
@@ -162,12 +164,13 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
     if (!runName || !selectedTemplateId) return;
 
     try {
-      const result = await createRun.mutateAsync({
-        name: runName,
-        filters,
-        template_id: selectedTemplateId,
-        status: 'preparing'
-      });
+          const result = await createRun.mutateAsync({
+            name: runName,
+            filters,
+            template_id: selectedTemplateId,
+            status: 'preparing',
+            organization_id: currentOrganizationId
+          });
       
       setCurrentRunId(result.id);
       handleNextStep();

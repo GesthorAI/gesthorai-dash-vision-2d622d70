@@ -271,14 +271,18 @@ export const useCreateFollowupRun = () => {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: async (run: Omit<FollowupRun, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'total_leads' | 'sent_count' | 'failed_count'>) => {
+    mutationFn: async (run: Omit<FollowupRun, 'id' | 'user_id' | 'organization_id' | 'created_at' | 'updated_at' | 'total_leads' | 'sent_count' | 'failed_count'> & { organization_id?: string }) => {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
+      if (!run.organization_id) {
+        throw new Error('Organization ID is required');
+      }
+
       const { data, error } = await supabase
         .from('followup_runs')
-        .insert({ ...run, user_id: user.id })
+        .insert({ ...run, user_id: user.id, organization_id: run.organization_id })
         .select()
         .single();
 
