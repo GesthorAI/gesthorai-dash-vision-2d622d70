@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrganizationContext } from "@/contexts/OrganizationContext";
+import { useSemanticSearch, useEmbedLead } from "./useSemanticSearch";
 
 export interface Lead {
   id: string;
@@ -416,6 +417,81 @@ export const useArchiveLead = () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
     }
   });
+};
+
+// Add semantic search hook for leads with embeddings
+export const useLeadsWithSemanticSearch = (filters?: LeadFilters & { useSemanticSearch?: boolean }) => {
+  const semanticSearch = useSemanticSearch();
+  const regularLeads = useLeads(filters);
+  
+  const performSemanticSearch = async (query: string) => {
+    if (!filters?.useSemanticSearch || !query.trim()) {
+      return regularLeads.refetch();
+    }
+    
+    try {
+      const result = await semanticSearch.mutateAsync({
+        query,
+        limit: 100,
+        similarity_threshold: 0.6
+      });
+      
+      return { data: result.leads };
+    } catch (error) {
+      console.error('Semantic search failed, falling back to regular search:', error);
+      return regularLeads.refetch();
+    }
+  };
+  
+  return {
+    ...regularLeads,
+    performSemanticSearch,
+    isSemanticSearching: semanticSearch.isPending
+  };
+};
+
+// Hook to auto-embed new leads
+export const useAutoEmbedLeads = () => {
+  const embedLead = useEmbedLead();
+  const queryClient = useQueryClient();
+  
+  const embedLeadsWithoutEmbeddings = async () => {
+    const { user } = useAuth();
+    const { currentOrganizationId } = useOrganizationContext();
+    
+    if (!user || !currentOrganizationId) return;
+    
+    // Get leads without embeddings
+    const { data: leadsToEmbed } = await supabase
+      .from('leads')
+      .select('id, name, business, city, niche, phone, email')
+      .eq('organization_id', currentOrganizationId)
+      .is('embedding', null)
+      .limit(10); // Process in batches
+    
+    if (leadsToEmbed && leadsToEmbed.length > 0) {
+      console.log(`Embedding ${leadsToEmbed.length} leads...`);
+      
+      // Process each lead
+      for (const lead of leadsToEmbed) {
+        try {
+          await embedLead.mutateAsync({
+            lead_id: lead.id,
+            lead_data: lead
+          });
+        } catch (error) {
+          console.error(`Failed to embed lead ${lead.id}:`, error);
+        }
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    }
+  };
+  
+  return {
+    embedLeadsWithoutEmbeddings,
+    isEmbedding: embedLead.isPending
+  };
 };
 
 // Bulk archive/unarchive multiple leads

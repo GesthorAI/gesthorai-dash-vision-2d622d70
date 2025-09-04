@@ -247,6 +247,54 @@ export type Database = {
           },
         ]
       }
+      auto_reply_settings: {
+        Row: {
+          auto_reply_delay_minutes: number | null
+          business_days: number[] | null
+          business_hours_end: string | null
+          business_hours_start: string | null
+          created_at: string
+          custom_prompt: string | null
+          id: string
+          is_active: boolean
+          max_replies_per_lead: number | null
+          organization_id: string | null
+          persona_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_reply_delay_minutes?: number | null
+          business_days?: number[] | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
+          created_at?: string
+          custom_prompt?: string | null
+          id?: string
+          is_active?: boolean
+          max_replies_per_lead?: number | null
+          organization_id?: string | null
+          persona_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_reply_delay_minutes?: number | null
+          business_days?: number[] | null
+          business_hours_end?: string | null
+          business_hours_start?: string | null
+          created_at?: string
+          custom_prompt?: string | null
+          id?: string
+          is_active?: boolean
+          max_replies_per_lead?: number | null
+          organization_id?: string | null
+          persona_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       communications: {
         Row: {
           channel: string
@@ -255,6 +303,7 @@ export type Database = {
           lead_id: string
           message: string | null
           metadata: Json | null
+          organization_id: string | null
           status: string
           type: string
           user_id: string
@@ -266,6 +315,7 @@ export type Database = {
           lead_id: string
           message?: string | null
           metadata?: Json | null
+          organization_id?: string | null
           status?: string
           type: string
           user_id: string
@@ -277,6 +327,7 @@ export type Database = {
           lead_id?: string
           message?: string | null
           metadata?: Json | null
+          organization_id?: string | null
           status?: string
           type?: string
           user_id?: string
@@ -511,6 +562,7 @@ export type Database = {
           contact_opt_out: boolean | null
           created_at: string
           email: string | null
+          embedding: string | null
           id: string
           last_contacted_at: string | null
           name: string
@@ -539,6 +591,7 @@ export type Database = {
           contact_opt_out?: boolean | null
           created_at?: string
           email?: string | null
+          embedding?: string | null
           id?: string
           last_contacted_at?: string | null
           name: string
@@ -567,6 +620,7 @@ export type Database = {
           contact_opt_out?: boolean | null
           created_at?: string
           email?: string | null
+          embedding?: string | null
           id?: string
           last_contacted_at?: string | null
           name?: string
@@ -1030,9 +1084,45 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      binary_quantize: {
+        Args: { "": string } | { "": unknown }
+        Returns: unknown
+      }
       create_organization_with_admin: {
         Args: { org_name: string; org_slug: string }
         Returns: Json
+      }
+      halfvec_avg: {
+        Args: { "": number[] }
+        Returns: unknown
+      }
+      halfvec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      halfvec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      halfvec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      hnsw_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnsw_sparsevec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      hnswhandler: {
+        Args: { "": unknown }
+        Returns: unknown
       }
       is_org_admin: {
         Args: { org_id: string; user_id?: string }
@@ -1042,9 +1132,65 @@ export type Database = {
         Args: { org_id: string; user_id?: string }
         Returns: boolean
       }
+      ivfflat_bit_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflat_halfvec_support: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      ivfflathandler: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      l2_norm: {
+        Args: { "": unknown } | { "": unknown }
+        Returns: number
+      }
+      l2_normalize: {
+        Args: { "": string } | { "": unknown } | { "": unknown }
+        Returns: string
+      }
       migrate_existing_data_to_orgs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      sparsevec_out: {
+        Args: { "": unknown }
+        Returns: unknown
+      }
+      sparsevec_send: {
+        Args: { "": unknown }
+        Returns: string
+      }
+      sparsevec_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
+      }
+      vector_avg: {
+        Args: { "": number[] }
+        Returns: string
+      }
+      vector_dims: {
+        Args: { "": string } | { "": unknown }
+        Returns: number
+      }
+      vector_norm: {
+        Args: { "": string }
+        Returns: number
+      }
+      vector_out: {
+        Args: { "": string }
+        Returns: unknown
+      }
+      vector_send: {
+        Args: { "": string }
+        Returns: string
+      }
+      vector_typmod_in: {
+        Args: { "": unknown[] }
+        Returns: number
       }
     }
     Enums: {
