@@ -27,6 +27,7 @@ interface PrepareRequest {
   templateId: string;
   generateWithAI?: boolean;
   personaConfig?: PersonaConfig;
+  selectedAIVariation?: string;
 }
 
 interface Lead {
@@ -167,12 +168,60 @@ serve(async (req) => {
       );
     }
 
+    // Robust variable interpolation function
+    const interpolateMessage = (message: string, lead: Lead): string => {
+      let interpolated = message;
+      
+      // Define lead field mapping
+      const fieldMap: Record<string, string> = {
+        'name': lead.name || '',
+        'nome': lead.name || '',
+        'nome_prospecto': lead.name || '',
+        'business': lead.business || '',
+        'empresa': lead.business || '',
+        'city': lead.city || '',
+        'cidade': lead.city || '',
+        'niche': lead.niche || '',
+        'nicho': lead.niche || '',
+        'phone': lead.phone || lead.whatsapp_number || '',
+        'telefone': lead.phone || lead.whatsapp_number || '',
+        'whatsapp': lead.whatsapp_number || lead.phone || '',
+        'email': (lead as any).email || '',
+        'score': String(lead.score || 0),
+        'rating': String(lead.score || 0),
+        'website': lead.website || ''
+      };
+      
+      // Replace variables - case insensitive, with or without spaces
+      Object.entries(fieldMap).forEach(([key, value]) => {
+        // Match {{key}}, {{ key }}, {{KEY}}, etc.
+        const patterns = [
+          new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi'),
+          new RegExp(`\\{\\{\\s*\\$json\\.${key}\\s*\\}\\}`, 'gi')
+        ];
+        
+        patterns.forEach(pattern => {
+          interpolated = interpolated.replace(pattern, value);
+        });
+      });
+      
+      // Remove any remaining placeholders
+      interpolated = interpolated.replace(/\{\{[^}]*\}\}/g, '');
+      
+      return interpolated.trim();
+    };
+
     // Generate messages for each lead
     const runItems = [];
     for (const lead of leads || []) {
       let messages = [];
 
-      if (body.generateWithAI && body.personaConfig && Deno.env.get('OPENAI_API_KEY')) {
+      if (body.generateWithAI && body.selectedAIVariation) {
+        // Use the selected AI variation directly
+        const interpolatedMessage = interpolateMessage(body.selectedAIVariation, lead);
+        messages = [interpolatedMessage];
+        console.log(`Using selected AI variation for lead ${lead.id}`);
+      } else if (body.generateWithAI && body.personaConfig && Deno.env.get('OPENAI_API_KEY')) {
         try {
           // Get Jina AI scraping data if enabled
           let jinaData = '';
@@ -240,7 +289,7 @@ Substitua ${body.personaConfig.name} por seu nome na primeira mensagem. Limite t
               // Parse JSON response
               const parsedMessages = JSON.parse(content);
               if (Array.isArray(parsedMessages) && parsedMessages.length === 3) {
-                messages = parsedMessages.map(msg => msg.message);
+                messages = parsedMessages.map(msg => interpolateMessage(msg.message, lead));
                 console.log(`Generated 3 AI messages for lead ${lead.id}`);
               } else {
                 throw new Error('Invalid message format');
@@ -248,47 +297,20 @@ Substitua ${body.personaConfig.name} por seu nome na primeira mensagem. Limite t
             } catch (parseError) {
               console.error('Error parsing AI response JSON:', parseError);
               console.log('Raw AI response:', content);
-              // Fallback to template
-              messages = [template.message.replace(/\{\{name\}\}/g, lead.name)];
+              // Fallback to template with interpolation
+              messages = [interpolateMessage(template.message, lead)];
             }
           } else {
             console.error('OpenAI API error, using template message');
-            messages = [template.message.replace(/\{\{name\}\}/g, lead.name)];
+            messages = [interpolateMessage(template.message, lead)];
           }
         } catch (error) {
           console.error('Error generating AI messages:', error);
-          messages = [template.message.replace(/\{\{name\}\}/g, lead.name)];
+          messages = [interpolateMessage(template.message, lead)];
         }
       } else {
-        // Use template with dynamic variable replacement
-        let message = template.message;
-        
-        // Replace all variables from template.variables array
-        template.variables?.forEach((variable: string) => {
-          const regex = new RegExp(`\\{\\{${variable}\\}\\}`, 'g');
-          const leadValue = (lead as any)[variable];
-          if (leadValue !== undefined && leadValue !== null) {
-            message = message.replace(regex, String(leadValue));
-          }
-        });
-        
-        // Fallback for common variables not in the variables array
-        const commonReplacements = {
-          name: lead.name || '',
-          business: lead.business || '',
-          city: lead.city || '',
-          niche: lead.niche || '',
-          phone: lead.phone || '',
-          email: lead.email || '',
-          score: String(lead.score || 0)
-        };
-        
-        Object.entries(commonReplacements).forEach(([key, value]) => {
-          const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-          message = message.replace(regex, value);
-        });
-        
-        messages = [message];
+        // Use template with robust interpolation
+        messages = [interpolateMessage(template.message, lead)];
       }
 
       // Create run items for each message

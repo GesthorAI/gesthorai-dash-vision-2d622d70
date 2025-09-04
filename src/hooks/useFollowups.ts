@@ -323,6 +323,7 @@ export const usePrepareFollowupRun = () => {
         useJinaAI: boolean;
         messageDelay: number;
       };
+      selectedAIVariation?: string;
     }) => {
       console.log('Calling followup-prepare with params:', params);
       

@@ -182,7 +182,8 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
           filters,
           templateId: selectedTemplateId,
           generateWithAI: useAI,
-          personaConfig: useAI ? personaConfig : undefined
+          personaConfig: useAI ? personaConfig : undefined,
+          selectedAIVariation: useAI ? aiGeneratedMessages.find(m => m.selected)?.message : undefined
         });
         
         toast.success('Campanha criada e preparada com sucesso!');
@@ -222,7 +223,8 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
           filters,
           templateId: selectedTemplateId,
           generateWithAI: useAI,
-          personaConfig: useAI ? personaConfig : undefined
+          personaConfig: useAI ? personaConfig : undefined,
+          selectedAIVariation: useAI ? aiGeneratedMessages.find(m => m.selected)?.message : undefined
         });
         console.log('Preparation result:', result);
         handleNextStep();
