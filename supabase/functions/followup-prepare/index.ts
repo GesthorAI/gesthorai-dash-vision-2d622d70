@@ -78,21 +78,38 @@ serve(async (req) => {
     const body: PrepareRequest = await req.json();
     console.log('Preparing followup run:', body.runId);
 
-    // Get user's organization
+    // Get the run and its organization_id
+    const { data: runData, error: runError } = await supabaseClient
+      .from('followup_runs')
+      .select('organization_id')
+      .eq('id', body.runId)
+      .single();
+
+    if (runError || !runData) {
+      console.error('Run not found:', body.runId);
+      return new Response(
+        JSON.stringify({ error: 'Run not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const organizationId = runData.organization_id;
+
+    // Validate user belongs to this organization
     const { data: membershipData } = await supabaseClient
       .from('organization_members')
       .select('organization_id')
       .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
       .single();
 
     if (!membershipData) {
+      console.error('User not authorized for organization:', organizationId);
       return new Response(
-        JSON.stringify({ error: 'User not found in any organization' }),
+        JSON.stringify({ error: 'User not authorized for this organization' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const organizationId = membershipData.organization_id;
 
     // Build lead query with filters based on organization_id
     let query = supabaseClient
@@ -302,12 +319,15 @@ Substitua ${body.personaConfig.name} por seu nome na primeira mensagem. Limite t
       }
     }
 
-    // Update run status and counts
+    // Update run status and counts - calculate unique leads
+    const uniqueLeadIds = new Set(runItems.map(item => item.lead_id));
+    const totalUniqueLeads = uniqueLeadIds.size;
+    
     const { error: updateError } = await supabaseClient
       .from('followup_runs')
       .update({
         status: 'prepared',
-        total_leads: runItems.length,
+        total_leads: totalUniqueLeads,
         started_at: new Date().toISOString()
       })
       .eq('id', body.runId)
@@ -321,12 +341,13 @@ Substitua ${body.personaConfig.name} por seu nome na primeira mensagem. Limite t
       );
     }
 
-    console.log(`Successfully prepared ${runItems.length} messages for run ${body.runId}`);
+    console.log(`Successfully prepared ${runItems.length} messages for ${totalUniqueLeads} unique leads in run ${body.runId}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        totalLeads: runItems.length,
+        totalLeads: totalUniqueLeads,
+        totalMessages: runItems.length,
         runItems: runItems.slice(0, 5) // Return first 5 for preview
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
