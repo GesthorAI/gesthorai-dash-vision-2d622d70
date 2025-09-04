@@ -98,7 +98,9 @@ serve(async (req) => {
     
     let evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    let evolutionInstanceName = body.instanceName || Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    let evolutionInstanceName = body.instanceName; // Priority to passed instanceName
+
+    console.log(`Instance name resolution - body.instanceName: ${body.instanceName}, organizationId: ${organizationId}`);
 
     // Try to get organization-specific settings
     const { data: evolutionSettings } = await supabaseClient
@@ -113,6 +115,7 @@ serve(async (req) => {
       }
       if (!evolutionInstanceName && evolutionSettings.default_instance_name) {
         evolutionInstanceName = evolutionSettings.default_instance_name;
+        console.log(`Using default_instance_name from evolution_settings: ${evolutionInstanceName}`);
       }
     }
 
@@ -128,7 +131,14 @@ serve(async (req) => {
 
       if (connectedInstance) {
         evolutionInstanceName = connectedInstance.name;
+        console.log(`Using connected instance from DB: ${evolutionInstanceName}`);
       }
+    }
+
+    // Final fallback to environment secret (but this should be avoided)
+    if (!evolutionInstanceName) {
+      evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+      console.log(`Falling back to EVOLUTION_INSTANCE_NAME: ${evolutionInstanceName}`);
     }
 
     if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstanceName) {
@@ -159,14 +169,33 @@ serve(async (req) => {
           
           if (!targetInstance) {
             console.error(`Instance '${evolutionInstanceName}' not found in Evolution API`);
-            return new Response(
-              JSON.stringify({ 
-                error: `Instância '${evolutionInstanceName}' não encontrada. Conecte sua instância WhatsApp primeiro.`,
-                code: 'INSTANCE_NOT_FOUND',
-                instanceName: evolutionInstanceName
-              }),
-              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            
+            // Auto-fallback: try to find any connected instance for this organization
+            const connectedInstance = instances.find(instance => 
+              instance.instance?.connectionStatus === 'open' || instance.instance?.connectionStatus === 'connecting'
             );
+            
+            if (connectedInstance && connectedInstance.instance?.instanceName) {
+              console.log(`Auto-fallback: Using connected instance '${connectedInstance.instance.instanceName}' instead of '${evolutionInstanceName}'`);
+              evolutionInstanceName = connectedInstance.instance.instanceName.toLowerCase();
+              
+              // Update the database record to reflect the correct instance name
+              await supabaseClient
+                .from('whatsapp_instances')
+                .update({ name: evolutionInstanceName })
+                .eq('organization_id', organizationId)
+                .eq('evolution_instance_id', connectedInstance.instance.instanceName);
+                
+            } else {
+              return new Response(
+                JSON.stringify({ 
+                  error: `Instância '${evolutionInstanceName}' não encontrada e nenhuma instância conectada disponível. Conecte sua instância WhatsApp primeiro.`,
+                  code: 'INSTANCE_NOT_FOUND',
+                  instanceName: evolutionInstanceName
+                }),
+                { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            }
           }
 
           // Check if instance is connected

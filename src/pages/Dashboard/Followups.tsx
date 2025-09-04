@@ -43,6 +43,7 @@ import {
   FollowupRun
 } from '@/hooks/useFollowups';
 import { useAIPersonas } from '@/hooks/useAIPersonas';
+import { useOrganizationContext } from '@/contexts/OrganizationContext';
 import { TemplateForm } from '@/components/Followups/TemplateForm';
 import { useUISettings } from '@/hooks/useUISettings';
 import { formatDistanceToNow } from 'date-fns';
@@ -66,6 +67,7 @@ export const Followups: React.FC = () => {
   const { data: templates } = useMessageTemplates();
   const { data: runItems } = useFollowupRunItems(selectedRunId);
   const { data: personas = [] } = useAIPersonas();
+  const { currentOrganizationId } = useOrganizationContext();
   const createDefaultTemplates = useCreateDefaultTemplates();
   const sendMessages = useSendFollowupMessages();
   const dispatchToN8n = useDispatchToN8n();
@@ -107,10 +109,15 @@ export const Followups: React.FC = () => {
 
   const handleContinueSending = async (runId: string) => {
     try {
+      // Get the stored instance name from localStorage
+      const storedInstanceName = localStorage.getItem('lastUsedWhatsAppInstance');
+      
       await sendMessages.mutateAsync({
         runId,
         batchSize: 10,
-        delayMs: 2000
+        delayMs: 2000,
+        instanceName: storedInstanceName || undefined,
+        organizationId: currentOrganizationId
       });
     } catch (error) {
       console.error('Error continuing send:', error);

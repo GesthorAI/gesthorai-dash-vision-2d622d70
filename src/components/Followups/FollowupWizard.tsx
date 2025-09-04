@@ -245,10 +245,15 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
           personaConfig
         });
       } else {
+        // Get the stored instance name from localStorage
+        const storedInstanceName = localStorage.getItem('lastUsedWhatsAppInstance');
+        
         await sendMessages.mutateAsync({
           runId: currentRunId,
           batchSize: 10,
-          delayMs: personaConfig.messageDelay * 1000
+          delayMs: personaConfig.messageDelay * 1000,
+          instanceName: storedInstanceName || undefined,
+          organizationId: currentOrganizationId
         });
       }
       
