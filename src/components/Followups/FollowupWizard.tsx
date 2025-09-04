@@ -164,18 +164,37 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
     if (!runName || !selectedTemplateId) return;
 
     try {
-          const result = await createRun.mutateAsync({
-            name: runName,
-            filters,
-            template_id: selectedTemplateId,
-            status: 'preparing',
-            organization_id: currentOrganizationId
-          });
+      const result = await createRun.mutateAsync({
+        name: runName,
+        filters,
+        template_id: selectedTemplateId,
+        status: 'preparing',
+        organization_id: currentOrganizationId
+      });
       
       setCurrentRunId(result.id);
-      handleNextStep();
+      
+      // Auto-trigger preparation after creating the run
+      try {
+        console.log('Auto-triggering preparation for run:', result.id);
+        await prepareRun.mutateAsync({
+          runId: result.id,
+          filters,
+          templateId: selectedTemplateId,
+          generateWithAI: useAI,
+          personaConfig: useAI ? personaConfig : undefined
+        });
+        
+        toast.success('Campanha criada e preparada com sucesso!');
+        handleNextStep();
+      } catch (prepareError) {
+        console.error('Error auto-preparing run:', prepareError);
+        toast.error(`Campanha criada mas erro na preparação: ${prepareError.message || 'Unknown error'}`);
+        handleNextStep(); // Still proceed to next step to allow manual preparation
+      }
     } catch (error) {
       console.error('Error creating run:', error);
+      toast.error('Erro ao criar campanha');
     }
   };
 

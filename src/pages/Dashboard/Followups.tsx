@@ -39,6 +39,7 @@ import {
   useDispatchToN8n,
   useValidateTemplate,
   useUpdateFollowupRunTemplate,
+  usePrepareFollowupRun,
   FollowupRun
 } from '@/hooks/useFollowups';
 import { useAIPersonas } from '@/hooks/useAIPersonas';
@@ -70,6 +71,7 @@ export const Followups: React.FC = () => {
   const dispatchToN8n = useDispatchToN8n();
   const validateTemplate = useValidateTemplate();
   const updateRunTemplate = useUpdateFollowupRunTemplate();
+  const prepareRun = usePrepareFollowupRun();
   const createTemplate = useCreateTemplate();
   const updateTemplate = useUpdateTemplate();
   const deleteTemplate = useDeleteTemplate();
@@ -228,6 +230,26 @@ export const Followups: React.FC = () => {
     }
   };
 
+  const handlePrepareNow = async (run: FollowupRun) => {
+    if (!run.template_id) {
+      console.error('Template não encontrado para preparar o run');
+      setSelectingTemplateForRun(run.id);
+      return;
+    }
+
+    try {
+      await prepareRun.mutateAsync({
+        runId: run.id,
+        filters: run.filters,
+        templateId: run.template_id,
+        generateWithAI: false, // Default to simple template substitution for manual trigger
+        personaConfig: undefined
+      });
+    } catch (error) {
+      console.error('Error preparing run:', error);
+    }
+  };
+
   const handleDeleteRun = async () => {
     if (deletingRun) {
       await deleteRun.mutateAsync(deletingRun);
@@ -382,6 +404,12 @@ export const Followups: React.FC = () => {
                               <Eye className="h-4 w-4 mr-2" />
                               Ver Detalhes
                             </DropdownMenuItem>
+                            {run.status === 'preparing' && (
+                              <DropdownMenuItem onClick={() => handlePrepareNow(run)}>
+                                <Clock className="h-4 w-4 mr-2" />
+                                Preparar agora
+                              </DropdownMenuItem>
+                            )}
                             {run.status === 'prepared' && (
                               <>
                                 <DropdownMenuItem onClick={() => handleContinueSending(run.id)}>
