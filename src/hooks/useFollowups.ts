@@ -415,13 +415,22 @@ export const useSendFollowupMessages = () => {
         });
       }
     },
-    onError: (error: Error) => {
+    onError: async (error: any) => {
       let errorMessage = error.message;
       let errorTitle = 'Erro no envio';
       
-      // Parse error data if it's a JSON string
+      // Parse error data - handle Supabase FunctionsHttpError
       try {
-        const errorData = JSON.parse(error.message);
+        let errorData;
+        
+        // If it's a FunctionsHttpError from Supabase, extract the JSON response
+        if (error.context && typeof error.context.json === 'function') {
+          errorData = await error.context.json();
+        } else {
+          // Try parsing the message as JSON
+          errorData = JSON.parse(error.message);
+        }
+        
         if (errorData.code) {
           switch (errorData.code) {
             case 'INSTANCE_NOT_FOUND':

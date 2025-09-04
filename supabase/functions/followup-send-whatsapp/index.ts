@@ -250,9 +250,15 @@ serve(async (req) => {
             }
           }
 
-          // Check if instance is connected
-          const instanceStatus = targetInstance.instance?.connectionStatus;
-          if (instanceStatus !== 'open' && instanceStatus !== 'connecting') {
+          // Check if instance is connected - try multiple status fields
+          const instanceStatus = targetInstance.instance?.connectionStatus || 
+                                 targetInstance.connectionStatus || 
+                                 targetInstance.status;
+          
+          const normalizedStatus = instanceStatus?.toLowerCase();
+          const validStatuses = ['open', 'connected', 'connecting'];
+          
+          if (!validStatuses.includes(normalizedStatus)) {
             console.error(`Instance '${evolutionInstanceName}' is not connected. Status: ${instanceStatus}`);
             return new Response(
               JSON.stringify({ 
