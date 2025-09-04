@@ -10,7 +10,7 @@ import { WorkflowAutomation } from "@/components/Operations/WorkflowAutomation";
 import { FollowupWizard } from "@/components/Followups/FollowupWizard";
 import { AdvancedFilters } from "@/components/Filters/AdvancedFilters";
 import { LeadsTableWithData } from "@/components/Operations/LeadsTableWithData";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useFilters } from "@/hooks/useFilters";
 import { useNavigation } from "@/hooks/useNavigation";
@@ -261,9 +261,12 @@ const Operations = () => {
 
       {/* Follow-up Wizard Dialog */}
       <Dialog open={showFollowupWizard} onOpenChange={setShowFollowupWizard}>
-        <DialogContent aria-describedby={undefined} className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Criar Follow-up</DialogTitle>
+            <DialogDescription>
+              Configure filtros, selecione templates de mensagem e envie follow-ups automatizados via WhatsApp
+            </DialogDescription>
           </DialogHeader>
           <FollowupWizard onClose={() => setShowFollowupWizard(false)} />
         </DialogContent>

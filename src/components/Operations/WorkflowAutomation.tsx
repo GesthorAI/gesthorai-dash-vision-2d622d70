@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
@@ -355,9 +355,12 @@ export const WorkflowAutomation = () => {
 
       {/* Workflow Creator Dialog */}
       <Dialog open={showNewWorkflow} onOpenChange={setShowNewWorkflow}>
-        <DialogContent aria-describedby={undefined} className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo Workflow</DialogTitle>
+            <DialogDescription>
+              Configure regras automáticas e ações para otimizar o processamento de leads
+            </DialogDescription>
           </DialogHeader>
           <WorkflowCreator onClose={() => setShowNewWorkflow(false)} />
         </DialogContent>

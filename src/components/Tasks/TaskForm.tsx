@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -103,6 +103,9 @@ export const TaskForm = ({ open, onOpenChange, task, defaultLeadId }: TaskFormPr
           <DialogTitle>
             {isEditing ? 'Editar Tarefa' : 'Nova Tarefa'}
           </DialogTitle>
+          <DialogDescription>
+            {isEditing ? 'Edite os detalhes da tarefa existente' : 'Crie uma nova tarefa para organizar seu trabalho'}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">

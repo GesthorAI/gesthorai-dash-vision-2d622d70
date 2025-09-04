@@ -66,7 +66,7 @@ serve(async (req) => {
       console.log('Evolution API not configured, running in simulation mode');
     }
 
-    // Get pending items for this run
+    // Get pending items for this run (fetch items and leads separately to avoid foreign key constraint)
     const { data: items, error: itemsError } = await supabaseClient
       .from('followup_run_items')
       .select(`
@@ -74,8 +74,7 @@ serve(async (req) => {
         lead_id,
         message,
         message_sequence,
-        total_messages,
-        leads!inner(name, phone, normalized_phone)
+        total_messages
       `)
       .eq('run_id', body.runId)
       .eq('status', 'pending')
@@ -97,6 +96,24 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Get lead details for the items
+    const leadIds = [...new Set(items.map(item => item.lead_id))];
+    const { data: leads, error: leadsError } = await supabaseClient
+      .from('leads')
+      .select('id, name, phone, normalized_phone')
+      .in('id', leadIds);
+
+    if (leadsError) {
+      console.error('Error fetching leads:', leadsError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch lead details' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Create a lookup map for leads
+    const leadsMap = new Map(leads?.map(lead => [lead.id, lead]) || []);
 
     console.log(`Processing ${items.length} messages`);
 
@@ -123,7 +140,13 @@ serve(async (req) => {
 
       for (const item of leadMessages) {
         try {
-          const phone = item.leads.normalized_phone || item.leads.phone.replace(/\D/g, '');
+          const lead = leadsMap.get(item.lead_id);
+          if (!lead) {
+            console.error(`Lead not found for item ${item.id}`);
+            continue;
+          }
+          
+          const phone = lead.normalized_phone || lead.phone.replace(/\D/g, '');
           const whatsappNumber = phone.startsWith('55') ? phone : `55${phone}`;
 
           let sendResult = { success: false, error: 'Simulation mode' };
