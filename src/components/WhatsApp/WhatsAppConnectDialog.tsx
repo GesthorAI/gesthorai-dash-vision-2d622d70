@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useWhatsAppInstances, useEvolutionAPI } from "@/hooks/useWhatsAppInstances";
+import { useOrganizationContext } from "@/contexts/OrganizationContext";
 import { Loader2, Smartphone, RefreshCw, QrCode, CheckCircle, XCircle, Wifi, WifiOff, Plus, Trash2 } from "lucide-react";
 
 export const WhatsAppConnectDialog = () => {
@@ -23,6 +24,7 @@ export const WhatsAppConnectDialog = () => {
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   
   const { toast } = useToast();
+  const { currentOrganizationId } = useOrganizationContext();
   const { data: instances = [], isLoading: instancesLoading } = useWhatsAppInstances();
   const evolutionAPI = useEvolutionAPI();
 
@@ -43,7 +45,8 @@ export const WhatsAppConnectDialog = () => {
     try {
       const result = await evolutionAPI.mutateAsync({ 
         action, 
-        instanceName: targetInstanceName || instanceName 
+        instanceName: targetInstanceName || instanceName,
+        organizationId: currentOrganizationId 
       });
       return result;
     } catch (error: any) {

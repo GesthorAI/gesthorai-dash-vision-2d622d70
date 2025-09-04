@@ -51,9 +51,13 @@ export const useEvolutionAPI = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async ({ action, instanceName }: { action: string; instanceName?: string }) => {
+    mutationFn: async ({ action, instanceName, organizationId }: { 
+      action: string; 
+      instanceName?: string; 
+      organizationId?: string; 
+    }) => {
       const { data, error } = await supabase.functions.invoke('evolution-instance', {
-        body: { action, instanceName }
+        body: { action, instanceName, organizationId }
       });
 
       if (error) throw error;

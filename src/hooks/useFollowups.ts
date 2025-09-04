@@ -375,6 +375,8 @@ export const useSendFollowupMessages = () => {
       runId: string;
       batchSize?: number;
       delayMs?: number;
+      instanceName?: string;
+      organizationId?: string;
     }) => {
       // Get the current session to include authorization header
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -396,7 +398,12 @@ export const useSendFollowupMessages = () => {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['followup-runs'] });
       
-      if (data.isCompleted) {
+      if (data.sentCount === 0 && data.failedCount === 0) {
+        toast({
+          title: 'Nenhum item pendente',
+          description: 'Todos os itens já foram processados.',
+        });
+      } else if (data.isCompleted) {
         toast({
           title: 'Follow-up concluído',
           description: `${data.totalSent} mensagens enviadas, ${data.totalFailed} falharam.`,
@@ -409,9 +416,18 @@ export const useSendFollowupMessages = () => {
       }
     },
     onError: (error: Error) => {
+      let errorMessage = error.message;
+      
+      // Handle specific error cases
+      if (error.message.includes('INSTANCE_NOT_FOUND')) {
+        errorMessage = 'Instância WhatsApp não encontrada. Conecte sua instância primeiro.';
+      } else if (error.message.includes('UNAUTHORIZED_ORG')) {
+        errorMessage = 'Selecione a organização correta no topo antes de enviar mensagens.';
+      }
+      
       toast({
         title: 'Erro no envio',
-        description: `Falha ao enviar mensagens: ${error.message}`,
+        description: errorMessage,
         variant: 'destructive',
       });
     },

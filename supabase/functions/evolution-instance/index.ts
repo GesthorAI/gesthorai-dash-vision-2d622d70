@@ -10,6 +10,7 @@ const corsHeaders = {
 interface EvolutionInstanceRequest {
   action: 'create' | 'connect' | 'status' | 'qrcode' | 'disconnect' | 'list';
   instanceName?: string;
+  organizationId?: string;
 }
 
 interface EvolutionResponse {
@@ -50,7 +51,7 @@ serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
-    const { action, instanceName } = await req.json() as EvolutionInstanceRequest;
+    const { action, instanceName, organizationId } = await req.json() as EvolutionInstanceRequest;
 
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
@@ -70,10 +71,16 @@ serve(async (req) => {
 
     switch (action) {
       case 'list': {
-        // Get user's instances from database
-        const { data: instances, error: dbError } = await supabaseClient
+        // Get user's instances from database - filter by organization if provided
+        let query = supabaseClient
           .from('whatsapp_instances')
-          .select('*')
+          .select('*');
+        
+        if (organizationId) {
+          query = query.eq('organization_id', organizationId);
+        }
+        
+        const { data: instances, error: dbError } = await query
           .order('created_at', { ascending: false });
 
         if (dbError) {
@@ -113,6 +120,7 @@ serve(async (req) => {
             .from('whatsapp_instances')
             .upsert({
               user_id: user.id,
+              organization_id: organizationId,
               name: targetInstanceName,
               last_status: 'created',
               evolution_instance_id: createData.instance?.instanceName || targetInstanceName,
@@ -171,6 +179,7 @@ serve(async (req) => {
             .from('whatsapp_instances')
             .upsert({
               user_id: user.id,
+              organization_id: organizationId,
               name: targetInstanceName,
               last_status: 'connecting',
               metadata: { lastQrCode: connectData.base64 || connectData.qrcode }
@@ -237,6 +246,7 @@ serve(async (req) => {
               .from('whatsapp_instances')
               .upsert({
                 user_id: user.id,
+                organization_id: organizationId,
                 name: targetInstanceName,
                 last_status: connectionStatus,
                 number: instanceStatus.instance?.number || instanceStatus.number,
@@ -280,6 +290,7 @@ serve(async (req) => {
             .from('whatsapp_instances')
             .upsert({
               user_id: user.id,
+              organization_id: organizationId,
               name: targetInstanceName,
               last_status: 'qr_generated',
               metadata: { lastQrCode: qrData.base64 || qrData.qrcode }

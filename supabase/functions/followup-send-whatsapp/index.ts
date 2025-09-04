@@ -51,19 +51,88 @@ serve(async (req) => {
       );
     }
 
-    const body: SendRequest = await req.json();
+    const body: SendRequest & { instanceName?: string; organizationId?: string } = await req.json();
     const batchSize = body.batchSize || 10;
     const delayMs = body.delayMs || 2000; // 2 second delay between messages
     
     console.log(`Starting WhatsApp sending for run ${body.runId}`);
 
-    // Get Evolution API credentials
-    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+    // Get the run and its organization_id
+    const { data: runData, error: runError } = await supabaseClient
+      .from('followup_runs')
+      .select('organization_id')
+      .eq('id', body.runId)
+      .single();
+
+    if (runError || !runData) {
+      console.error('Run not found:', body.runId);
+      return new Response(
+        JSON.stringify({ error: 'Run not found', code: 'RUN_NOT_FOUND' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const organizationId = runData.organization_id;
+
+    // Validate user belongs to this organization
+    const { data: membershipData } = await supabaseClient
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
+      .single();
+
+    if (!membershipData) {
+      console.error('User not authorized for organization:', organizationId);
+      return new Response(
+        JSON.stringify({ error: 'User not authorized for this organization', code: 'UNAUTHORIZED_ORG' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Resolve Evolution API settings and instance name by priority:
+    // 1. instanceName from body (if passed)
+    // 2. evolution_settings.default_instance_name for organization
+    // 3. First connected whatsapp instance for organization
+    // 4. Fallback to environment secrets
+    
+    let evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
-    const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    let evolutionInstanceName = body.instanceName || Deno.env.get('EVOLUTION_INSTANCE_NAME');
+
+    // Try to get organization-specific settings
+    const { data: evolutionSettings } = await supabaseClient
+      .from('evolution_settings')
+      .select('evolution_api_url, default_instance_name')
+      .eq('organization_id', organizationId)
+      .single();
+
+    if (evolutionSettings) {
+      if (evolutionSettings.evolution_api_url) {
+        evolutionApiUrl = evolutionSettings.evolution_api_url;
+      }
+      if (!evolutionInstanceName && evolutionSettings.default_instance_name) {
+        evolutionInstanceName = evolutionSettings.default_instance_name;
+      }
+    }
+
+    // If still no instance name, try to get the first connected instance for this organization
+    if (!evolutionInstanceName) {
+      const { data: connectedInstance } = await supabaseClient
+        .from('whatsapp_instances')
+        .select('name')
+        .eq('organization_id', organizationId)
+        .in('last_status', ['open', 'connected'])
+        .limit(1)
+        .single();
+
+      if (connectedInstance) {
+        evolutionInstanceName = connectedInstance.name;
+      }
+    }
 
     if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstanceName) {
-      console.log('Evolution API not configured, running in simulation mode');
+      console.log('Evolution API not fully configured, running in simulation mode');
     }
 
     // Get pending items for this run (fetch items and leads separately to avoid foreign key constraint)
@@ -179,8 +248,20 @@ serve(async (req) => {
                 console.log(`Message ${item.message_sequence || 1}/${item.total_messages || 1} sent successfully to ${whatsappNumber}`);
               } else {
                 const errorData = await evolutionResponse.text();
-                sendResult = { success: false, error: `Evolution API error: ${errorData}` };
-                console.error(`Failed to send message ${item.message_sequence || 1} to ${whatsappNumber}:`, errorData);
+                let parsedError;
+                try {
+                  parsedError = JSON.parse(errorData);
+                } catch {
+                  parsedError = { message: errorData };
+                }
+                
+                // Check for specific error cases
+                if (parsedError.message && parsedError.message.includes('does not exist')) {
+                  sendResult = { success: false, error: `Instance '${evolutionInstanceName}' not found. Please connect your WhatsApp instance first.`, code: 'INSTANCE_NOT_FOUND' };
+                } else {
+                  sendResult = { success: false, error: `Evolution API error: ${parsedError.message || errorData}` };
+                }
+                console.error(`Failed to send message ${item.message_sequence || 1} to ${whatsappNumber}:`, parsedError);
               }
             } catch (evolutionError) {
               sendResult = { success: false, error: `Evolution API request failed: ${evolutionError.message}` };
@@ -210,6 +291,7 @@ serve(async (req) => {
               .from('communications')
               .insert({
                 user_id: user.id,
+                organization_id: organizationId,
                 lead_id: item.lead_id,
                 type: 'follow_up',
                 channel: 'whatsapp',
@@ -219,7 +301,8 @@ serve(async (req) => {
                   run_id: body.runId, 
                   phone: whatsappNumber,
                   message_sequence: item.message_sequence || 1,
-                  total_messages: item.total_messages || 1
+                  total_messages: item.total_messages || 1,
+                  instance_name: evolutionInstanceName
                 }
               });
 
