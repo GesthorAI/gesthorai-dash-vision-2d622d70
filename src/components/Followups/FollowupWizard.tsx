@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -66,6 +66,21 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   const { data: personas = [] } = useAIPersonas();
   const { data: aiSettings } = useAISettings();
   const generateAIFollowup = useAIFollowup();
+
+  // Update personaConfig when selectedPersona changes
+  React.useEffect(() => {
+    if (selectedPersona && personas.length > 0) {
+      const selectedPersonaData = personas.find(p => p.id === selectedPersona);
+      if (selectedPersonaData) {
+        setPersonaConfig({
+          name: selectedPersonaData.name,
+          systemPrompt: selectedPersonaData.guidelines || selectedPersonaData.description || `Você é ${selectedPersonaData.name}, com tom ${selectedPersonaData.tone}. ${selectedPersonaData.guidelines || ''}`,
+          useJinaAI: false,
+          messageDelay: 3
+        });
+      }
+    }
+  }, [selectedPersona, personas]);
 
   // Type-safe feature flags access
   const getFeatureFlag = (flag: string): boolean => {

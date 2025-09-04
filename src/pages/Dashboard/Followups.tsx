@@ -41,6 +41,7 @@ import {
   useUpdateFollowupRunTemplate,
   FollowupRun
 } from '@/hooks/useFollowups';
+import { useAIPersonas } from '@/hooks/useAIPersonas';
 import { TemplateForm } from '@/components/Followups/TemplateForm';
 import { useUISettings } from '@/hooks/useUISettings';
 import { formatDistanceToNow } from 'date-fns';
@@ -62,6 +63,7 @@ export const Followups: React.FC = () => {
   const { data: runs, isLoading: runsLoading } = useFollowupRuns();
   const { data: templates } = useMessageTemplates();
   const { data: runItems } = useFollowupRunItems(selectedRunId);
+  const { data: personas = [] } = useAIPersonas();
   const createDefaultTemplates = useCreateDefaultTemplates();
   const sendMessages = useSendFollowupMessages();
   const dispatchToN8n = useDispatchToN8n();
@@ -127,17 +129,26 @@ export const Followups: React.FC = () => {
     try {
       await validateTemplate.mutateAsync(run.template_id);
       
-      console.log('🚀 Dispatching to n8n:', { runId: run.id, templateId: run.template_id });
+      // Get default persona or use fallback
+      const defaultPersona = personas?.[0];
+      const personaConfig = defaultPersona ? {
+        name: defaultPersona.name,
+        systemPrompt: defaultPersona.guidelines || defaultPersona.description || `Você é ${defaultPersona.name}, especialista em follow-up consultivo com tom ${defaultPersona.tone}.`,
+        useJinaAI: false,
+        messageDelay: 3
+      } : {
+        name: 'Assistente',
+        systemPrompt: 'Você é um especialista em follow-up consultivo e vendas. Use tom profissional e amigável.',
+        useJinaAI: false,
+        messageDelay: 3
+      };
+      
+      console.log('🚀 Dispatching to n8n:', { runId: run.id, templateId: run.template_id, personaName: personaConfig.name });
       await dispatchToN8n.mutateAsync({
         runId: run.id,
         templateId: run.template_id,
         filters: run.filters,
-        personaConfig: {
-          name: 'Milene',
-          systemPrompt: 'Você é um especialista em follow-up consultivo.',
-          useJinaAI: false,
-          messageDelay: 3
-        }
+        personaConfig
       });
     } catch (error) {
       console.error('❌ Error dispatching to n8n:', error);
