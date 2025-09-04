@@ -26,7 +26,8 @@ import {
   Eye,
   EyeOff,
   Save,
-  AlertTriangle
+  AlertTriangle,
+  Target
 } from "lucide-react";
 import { useAISettings } from "@/hooks/useAIPersonas";
 import { useUpdateAISettings, useAISecretStatus, useAISmoketest } from "@/hooks/useUpdateAISettings";
