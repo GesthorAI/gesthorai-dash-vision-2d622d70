@@ -69,20 +69,23 @@ export const useCreateDefaultTemplates = () => {
 
   return useMutation({
     mutationFn: async () => {
-      const { data: existingTemplates } = await supabase
-        .from('message_templates')
-        .select('id')
-        .limit(1);
-
-      if (existingTemplates && existingTemplates.length > 0) {
-        return existingTemplates;
-      }
-
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not authenticated');
 
-      const defaultTemplates = [
+      // Check which default templates already exist
+      const defaultTemplateNames = ['Follow-up Inicial', 'Follow-up Segunda Tentativa', 'Follow-up com Oferta'];
+      
+      const { data: existingTemplates } = await supabase
+        .from('message_templates')
+        .select('name')
+        .eq('user_id', user.id)
+        .in('name', defaultTemplateNames);
+
+      const existingNames = existingTemplates?.map(t => t.name) || [];
+      
+      // Only create templates that don't exist
+      const templatesToCreate = [
         {
           user_id: user.id,
           name: 'Follow-up Inicial',
@@ -104,11 +107,21 @@ export const useCreateDefaultTemplates = () => {
           message: 'Olá {{name}}! Preparei uma proposta especial para {{business}} em {{city}}. Posso te mostrar como isso pode ajudar seu negócio?',
           variables: ['name', 'business', 'city']
         }
-      ];
+      ].filter(template => !existingNames.includes(template.name));
+
+      if (templatesToCreate.length === 0) {
+        // All templates already exist, just return existing ones
+        const { data: allTemplates } = await supabase
+          .from('message_templates')
+          .select('*')
+          .eq('user_id', user.id)
+          .in('name', defaultTemplateNames);
+        return allTemplates;
+      }
 
       const { data, error } = await supabase
         .from('message_templates')
-        .insert(defaultTemplates)
+        .insert(templatesToCreate)
         .select();
 
       if (error) throw error;
