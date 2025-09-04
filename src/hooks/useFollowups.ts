@@ -326,8 +326,18 @@ export const usePrepareFollowupRun = () => {
     }) => {
       console.log('Calling followup-prepare with params:', params);
       
+      // Get the current session to include authorization header
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.access_token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+      
       const { data, error } = await supabase.functions.invoke('followup-prepare', {
         body: params,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       console.log('followup-prepare response:', { data, error });
@@ -366,8 +376,18 @@ export const useSendFollowupMessages = () => {
       batchSize?: number;
       delayMs?: number;
     }) => {
+      // Get the current session to include authorization header
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.access_token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+      
       const { data, error } = await supabase.functions.invoke('followup-send-whatsapp', {
         body: params,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (error) throw error;
@@ -465,8 +485,18 @@ export const useDispatchToN8n = () => {
         messageDelay: number;
       };
     }) => {
+      // Get the current session to include authorization header
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.access_token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
+      
       const { data, error } = await supabase.functions.invoke('n8n-followup-dispatch', {
         body: params,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (error) throw error;
