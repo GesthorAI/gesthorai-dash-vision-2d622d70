@@ -247,6 +247,33 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          id: string
+          record_id: string | null
+          table_name: string
+          timestamp: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          id?: string
+          record_id?: string | null
+          table_name: string
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          id?: string
+          record_id?: string | null
+          table_name?: string
+          timestamp?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       auto_reply_settings: {
         Row: {
           auto_reply_delay_minutes: number | null
@@ -569,7 +596,7 @@ export type Database = {
           niche: string | null
           normalized_email: string | null
           normalized_phone: string | null
-          organization_id: string | null
+          organization_id: string
           phone: string | null
           score: number | null
           search_id: string | null
@@ -598,7 +625,7 @@ export type Database = {
           niche?: string | null
           normalized_email?: string | null
           normalized_phone?: string | null
-          organization_id?: string | null
+          organization_id: string
           phone?: string | null
           score?: number | null
           search_id?: string | null
@@ -627,7 +654,7 @@ export type Database = {
           niche?: string | null
           normalized_email?: string | null
           normalized_phone?: string | null
-          organization_id?: string | null
+          organization_id?: string
           phone?: string | null
           score?: number | null
           search_id?: string | null
