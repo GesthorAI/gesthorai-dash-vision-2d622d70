@@ -5,6 +5,7 @@ import { useAuth } from './useAuth';
 export interface AssignmentRule {
   id: string;
   user_id: string;
+  organization_id: string;
   name: string;
   criteria: {
     scoreRange: [number, number];
@@ -44,7 +45,7 @@ export const useCreateAssignmentRule = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (data: Omit<AssignmentRule, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+    mutationFn: async (data: Omit<AssignmentRule, 'id' | 'user_id' | 'organization_id' | 'created_at' | 'updated_at'>) => {
       if (!user) throw new Error('User not authenticated');
       
       const { data: result, error } = await supabase
