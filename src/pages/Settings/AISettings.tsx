@@ -490,33 +490,121 @@ export const AISettings = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5" />
-              Funcionalidades
+              Funcionalidades de IA
             </CardTitle>
             <CardDescription>
-              Ativar ou desativar recursos de IA
+              Configure recursos inteligentes para automação de vendas
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             {[
-              { key: 'followup_ai', label: 'IA para Follow-ups', description: 'Geração automática de mensagens' },
-              { key: 'lead_scoring_ai', label: 'Score de Leads com IA', description: 'Análise inteligente de qualidade' },
-              { key: 'auto_dedupe', label: 'Deduplicação Automática', description: 'Remoção automática de duplicatas' },
-              { key: 'semantic_search', label: 'Busca Semântica', description: 'Busca inteligente por contexto' },
-              { key: 'auto_reply', label: 'Respostas Automáticas', description: 'Respostas automáticas a leads' },
-            ].map((feature) => (
-              <div key={feature.key} className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>{feature.label}</Label>
-                  <p className="text-xs text-muted-foreground">{feature.description}</p>
+              { 
+                key: 'followup_ai', 
+                label: 'IA para Follow-ups', 
+                description: 'Gera mensagens personalizadas usando IA',
+                details: 'Cria automaticamente mensagens de follow-up baseadas na persona selecionada e dados do lead',
+                whereUsed: 'Aba Follow-ups → Geração AI',
+                requirements: 'Chave OpenAI configurada + Personas criadas',
+                status: 'implemented',
+                icon: <Brain className="h-4 w-4" />
+              },
+              { 
+                key: 'lead_scoring_ai', 
+                label: 'Score de Leads com IA', 
+                description: 'Avalia leads automaticamente com pontuação inteligente',
+                details: 'Analisa dados do lead e atribui score de 0-10 com justificativa detalhada usando IA',
+                whereUsed: 'Aba Quality → Análise AI + Tabela de Leads',
+                requirements: 'Chave OpenAI configurada',
+                status: 'implemented',
+                icon: <BarChart className="h-4 w-4" />
+              },
+              { 
+                key: 'auto_dedupe', 
+                label: 'Deduplicação Automática', 
+                description: 'Previne leads duplicados por telefone e email',
+                details: 'Sistema evita duplicatas automaticamente. Quando ativo, exibe opções de merge na interface',
+                whereUsed: 'Cadastro de Leads + Busca',
+                requirements: 'Nenhum (funciona sempre no banco)',
+                status: 'partial',
+                icon: <CheckCircle className="h-4 w-4" />
+              },
+              { 
+                key: 'semantic_search', 
+                label: 'Busca Semântica', 
+                description: 'Busca leads por significado, não apenas palavras exatas',
+                details: 'Permite encontrar leads usando contexto e sinônimos, ex: "dentista" encontra "odontólogo"',
+                whereUsed: 'Aba Search → Campo de busca',
+                requirements: 'Chave OpenAI + Banco vetorial',
+                status: 'planned',
+                icon: <Target className="h-4 w-4" />
+              },
+              { 
+                key: 'auto_reply', 
+                label: 'Respostas Automáticas', 
+                description: 'Responde automaticamente mensagens recebidas',
+                details: 'Integra com WhatsApp para responder leads baseado em personas e horário comercial',
+                whereUsed: 'WhatsApp Webhook + Nova aba Inbox',
+                requirements: 'Chave OpenAI + WhatsApp conectado',
+                status: 'planned',
+                icon: <Zap className="h-4 w-4" />
+              },
+            ].map((feature) => {
+              const getStatusBadge = (status: string) => {
+                switch (status) {
+                  case 'implemented':
+                    return <Badge variant="default" className="text-xs">✅ Implementado</Badge>;
+                  case 'partial':
+                    return <Badge variant="secondary" className="text-xs">🔧 Parcial</Badge>;
+                  case 'planned':
+                    return <Badge variant="outline" className="text-xs">📋 Planejado</Badge>;
+                  default:
+                    return null;
+                }
+              };
+
+              return (
+                <div key={feature.key} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="p-1.5 bg-muted rounded">
+                        {feature.icon}
+                      </div>
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Label className="font-semibold">{feature.label}</Label>
+                          {getStatusBadge(feature.status)}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{feature.description}</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">{feature.details}</p>
+                        <div className="text-xs space-y-1">
+                          <div><strong>Onde aparece:</strong> {feature.whereUsed}</div>
+                          <div><strong>Requisitos:</strong> {feature.requirements}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      <Switch
+                        checked={featureFlags?.[feature.key] || false}
+                        onCheckedChange={(checked) => handleUpdateSettings({
+                          feature_flags: { ...featureFlags, [feature.key]: checked }
+                        })}
+                        disabled={feature.status === 'planned'}
+                      />
+                      {feature.status === 'planned' && (
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Badge variant="outline" className="text-xs cursor-help">Em breve</Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">Esta funcionalidade está sendo implementada</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <Switch
-                  checked={featureFlags?.[feature.key] || false}
-                  onCheckedChange={(checked) => handleUpdateSettings({
-                    feature_flags: { ...featureFlags, [feature.key]: checked }
-                  })}
-                />
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 
