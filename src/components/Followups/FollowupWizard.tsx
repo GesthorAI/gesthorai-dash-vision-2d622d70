@@ -13,6 +13,7 @@ import { useLeads } from '@/hooks/useLeads';
 import { useMessageTemplates, useCreateFollowupRun, usePrepareFollowupRun, useSendFollowupMessages, useDispatchToN8n } from '@/hooks/useFollowups';
 import { useAIPersonas, useAISettings, useCreateDefaultPersonas } from '@/hooks/useAIPersonas';
 import { useAIFollowup } from '@/hooks/useAIFollowup';
+import { useOrganizationContext } from '@/contexts/OrganizationContext';
 import { toast } from 'sonner';
 
 interface FollowupFilters {
@@ -65,6 +66,7 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   const dispatchToN8n = useDispatchToN8n();
   const { data: personas = [] } = useAIPersonas();
   const { data: aiSettings } = useAISettings();
+  const { currentOrganizationId, organizations } = useOrganizationContext();
   const generateAIFollowup = useAIFollowup();
   const createDefaultPersonas = useCreateDefaultPersonas();
 
@@ -310,10 +312,20 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
 
               <Card className="bg-muted/50">
                 <CardContent className="pt-6">
-                  <div className="flex items-center gap-2">
-                    <Users className="h-4 w-4 text-primary" />
-                    <span className="font-medium">Leads encontrados: </span>
-                    <Badge variant="secondary">{filteredLeadsCount}</Badge>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      <span className="font-medium">Leads encontrados: </span>
+                      <Badge variant="secondary">{filteredLeadsCount}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Organização: {organizations.find(org => org.id === currentOrganizationId)?.name || 'Carregando...'}
+                    </div>
+                    {filteredLeadsCount === 0 && (
+                      <p className="text-sm text-destructive">
+                        Nenhum lead encontrado com os filtros atuais. Ajuste os filtros para encontrar leads.
+                      </p>
+                    )}
                   </div>
                 </CardContent>
               </Card>

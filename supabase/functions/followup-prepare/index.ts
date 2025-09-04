@@ -78,13 +78,30 @@ serve(async (req) => {
     const body: PrepareRequest = await req.json();
     console.log('Preparing followup run:', body.runId);
 
-    // Build lead query with filters
+    // Get user's organization
+    const { data: membershipData } = await supabaseClient
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membershipData) {
+      return new Response(
+        JSON.stringify({ error: 'User not found in any organization' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const organizationId = membershipData.organization_id;
+
+    // Build lead query with filters based on organization_id
     let query = supabaseClient
       .from('leads')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
       .neq('status', 'descartado');
 
+    // Apply case-insensitive filtering for niche and city
     if (body.filters.niche) {
       query = query.ilike('niche', `%${body.filters.niche}%`);
     }
@@ -122,7 +139,7 @@ serve(async (req) => {
       .from('message_templates')
       .select('*')
       .eq('id', body.templateId)
-      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
       .single();
 
     if (templateError) {
@@ -294,7 +311,7 @@ Substitua ${body.personaConfig.name} por seu nome na primeira mensagem. Limite t
         started_at: new Date().toISOString()
       })
       .eq('id', body.runId)
-      .eq('user_id', user.id);
+      .eq('organization_id', organizationId);
 
     if (updateError) {
       console.error('Error updating run:', updateError);

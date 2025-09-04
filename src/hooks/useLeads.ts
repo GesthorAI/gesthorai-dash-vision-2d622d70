@@ -55,6 +55,10 @@ export interface LeadFilters {
   whatsappVerified?: boolean | null;
   archived?: boolean | null;
   sources?: string[];
+  // Follow-up wizard filters
+  minScore?: number;
+  maxDaysOld?: number;
+  excludeContacted?: boolean;
   // Legacy support
   cities?: string[];
   niches?: string[];
@@ -115,17 +119,32 @@ export const useLeads = (filters?: LeadFilters) => {
         }
       }
 
-      // Apply filters
+      // Apply filters with case-insensitive search for text fields
       if (filters?.status) {
         query = query.eq('status', filters.status);
       }
 
       if (filters?.niche) {
-        query = query.eq('niche', filters.niche);
+        query = query.ilike('niche', `%${filters.niche}%`);
       }
 
       if (filters?.city) {
-        query = query.eq('city', filters.city);
+        query = query.ilike('city', `%${filters.city}%`);
+      }
+
+      // Add support for follow-up wizard filters
+      if (filters?.minScore !== undefined) {
+        query = query.gte('score', filters.minScore);
+      }
+
+      if (filters?.maxDaysOld !== undefined) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - filters.maxDaysOld);
+        query = query.gte('created_at', cutoffDate.toISOString());
+      }
+
+      if (filters?.excludeContacted) {
+        query = query.is('last_contacted_at', null);
       }
 
       if (filters?.assignedTo) {
