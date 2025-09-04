@@ -417,16 +417,49 @@ export const useSendFollowupMessages = () => {
     },
     onError: (error: Error) => {
       let errorMessage = error.message;
+      let errorTitle = 'Erro no envio';
       
-      // Handle specific error cases
-      if (error.message.includes('INSTANCE_NOT_FOUND')) {
-        errorMessage = 'Instância WhatsApp não encontrada. Conecte sua instância primeiro.';
-      } else if (error.message.includes('UNAUTHORIZED_ORG')) {
-        errorMessage = 'Selecione a organização correta no topo antes de enviar mensagens.';
+      // Parse error data if it's a JSON string
+      try {
+        const errorData = JSON.parse(error.message);
+        if (errorData.code) {
+          switch (errorData.code) {
+            case 'INSTANCE_NOT_FOUND':
+              errorTitle = 'WhatsApp não conectado';
+              errorMessage = `Instância '${errorData.instanceName || 'desconhecida'}' não encontrada. Conecte sua instância WhatsApp primeiro.`;
+              break;
+            case 'INSTANCE_NOT_CONNECTED':
+              errorTitle = 'WhatsApp desconectado';
+              errorMessage = `Instância '${errorData.instanceName || 'desconhecida'}' não está conectada (${errorData.currentStatus}). Reconecte sua instância.`;
+              break;
+            case 'UNAUTHORIZED_ORG':
+              errorTitle = 'Organização incorreta';
+              errorMessage = 'Selecione a organização correta no topo antes de enviar mensagens.';
+              break;
+            case 'RUN_NOT_FOUND':
+              errorTitle = 'Campanha não encontrada';
+              errorMessage = 'A campanha de follow-up não foi encontrada.';
+              break;
+            default:
+              errorMessage = errorData.error || errorData.message || error.message;
+          }
+        }
+      } catch {
+        // Handle specific error cases in plain text
+        if (error.message.includes('INSTANCE_NOT_FOUND')) {
+          errorTitle = 'WhatsApp não conectado';
+          errorMessage = 'Instância WhatsApp não encontrada. Conecte sua instância primeiro.';
+        } else if (error.message.includes('INSTANCE_NOT_CONNECTED')) {
+          errorTitle = 'WhatsApp desconectado';
+          errorMessage = 'Instância WhatsApp não está conectada. Reconecte sua instância.';
+        } else if (error.message.includes('UNAUTHORIZED_ORG')) {
+          errorTitle = 'Organização incorreta';
+          errorMessage = 'Selecione a organização correta no topo antes de enviar mensagens.';
+        }
       }
       
       toast({
-        title: 'Erro no envio',
+        title: errorTitle,
         description: errorMessage,
         variant: 'destructive',
       });

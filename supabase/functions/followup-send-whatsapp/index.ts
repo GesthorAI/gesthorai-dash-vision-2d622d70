@@ -133,6 +133,65 @@ serve(async (req) => {
 
     if (!evolutionApiUrl || !evolutionApiKey || !evolutionInstanceName) {
       console.log('Evolution API not fully configured, running in simulation mode');
+    } else {
+      // Normalize instance name to lowercase for Evolution API compatibility
+      evolutionInstanceName = evolutionInstanceName.toLowerCase();
+      
+      // Pre-check if instance exists and is connected via Evolution API
+      try {
+        console.log(`Checking instance '${evolutionInstanceName}' status...`);
+        const instanceCheckResponse = await fetch(`${evolutionApiUrl}/instance/fetchInstances`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': evolutionApiKey,
+          },
+        });
+
+        if (instanceCheckResponse.ok) {
+          const instancesData = await instanceCheckResponse.json();
+          const instances = Array.isArray(instancesData) ? instancesData : [];
+          
+          // Find the instance
+          const targetInstance = instances.find(instance => 
+            instance.instance?.instanceName?.toLowerCase() === evolutionInstanceName
+          );
+          
+          if (!targetInstance) {
+            console.error(`Instance '${evolutionInstanceName}' not found in Evolution API`);
+            return new Response(
+              JSON.stringify({ 
+                error: `Instância '${evolutionInstanceName}' não encontrada. Conecte sua instância WhatsApp primeiro.`,
+                code: 'INSTANCE_NOT_FOUND',
+                instanceName: evolutionInstanceName
+              }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          // Check if instance is connected
+          const instanceStatus = targetInstance.instance?.connectionStatus;
+          if (instanceStatus !== 'open' && instanceStatus !== 'connecting') {
+            console.error(`Instance '${evolutionInstanceName}' is not connected. Status: ${instanceStatus}`);
+            return new Response(
+              JSON.stringify({ 
+                error: `Instância '${evolutionInstanceName}' não está conectada. Status: ${instanceStatus}. Conecte primeiro.`,
+                code: 'INSTANCE_NOT_CONNECTED',
+                instanceName: evolutionInstanceName,
+                currentStatus: instanceStatus
+              }),
+              { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+
+          console.log(`Instance '${evolutionInstanceName}' is ready. Status: ${instanceStatus}`);
+        } else {
+          const errorText = await instanceCheckResponse.text();
+          console.warn(`Could not check instance status: ${errorText}. Proceeding with send attempt...`);
+        }
+      } catch (checkError) {
+        console.warn(`Could not pre-check instance: ${checkError.message}. Proceeding with send attempt...`);
+      }
     }
 
     // Get pending items for this run (fetch items and leads separately to avoid foreign key constraint)
@@ -255,11 +314,34 @@ serve(async (req) => {
                   parsedError = { message: errorData };
                 }
                 
+                // Enhanced error parsing - check nested error structures
+                let errorMessage = parsedError.message || parsedError.error?.message || parsedError.error || errorData;
+                
                 // Check for specific error cases
-                if (parsedError.message && parsedError.message.includes('does not exist')) {
-                  sendResult = { success: false, error: `Instance '${evolutionInstanceName}' not found. Please connect your WhatsApp instance first.`, code: 'INSTANCE_NOT_FOUND' };
+                if (errorMessage && (
+                  errorMessage.includes('does not exist') || 
+                  errorMessage.includes('not found') ||
+                  errorMessage.includes('não existe') ||
+                  errorMessage.includes('não encontrada')
+                )) {
+                  sendResult = { 
+                    success: false, 
+                    error: `Instância '${evolutionInstanceName}' não encontrada. Conecte sua instância WhatsApp primeiro.`, 
+                    code: 'INSTANCE_NOT_FOUND' 
+                  };
+                } else if (errorMessage && (
+                  errorMessage.includes('not connected') ||
+                  errorMessage.includes('disconnected') ||
+                  errorMessage.includes('não conectada') ||
+                  errorMessage.includes('desconectada')
+                )) {
+                  sendResult = { 
+                    success: false, 
+                    error: `Instância '${evolutionInstanceName}' não está conectada. Conecte primeiro.`, 
+                    code: 'INSTANCE_NOT_CONNECTED' 
+                  };
                 } else {
-                  sendResult = { success: false, error: `Evolution API error: ${parsedError.message || errorData}` };
+                  sendResult = { success: false, error: `Evolution API error: ${errorMessage}` };
                 }
                 console.error(`Failed to send message ${item.message_sequence || 1} to ${whatsappNumber}:`, parsedError);
               }
