@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { ArrowLeft, ArrowRight, Play, Sparkles, Users, Filter, MessageSquare, Send, Loader2 } from 'lucide-react';
 import { useLeads } from '@/hooks/useLeads';
 import { useMessageTemplates, useCreateFollowupRun, usePrepareFollowupRun, useSendFollowupMessages, useDispatchToN8n } from '@/hooks/useFollowups';
-import { useAIPersonas, useAISettings } from '@/hooks/useAIPersonas';
+import { useAIPersonas, useAISettings, useCreateDefaultPersonas } from '@/hooks/useAIPersonas';
 import { useAIFollowup } from '@/hooks/useAIFollowup';
 import { toast } from 'sonner';
 
@@ -51,8 +51,8 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
     selected?: boolean;
   }>>([]);
   const [personaConfig, setPersonaConfig] = useState<PersonaConfig>({
-    name: 'Milene',
-    systemPrompt: `Você é um copywriter especializado em marketing conversacional e vendas consultivas. Crie mensagens WhatsApp personalizadas que estabeleçam conexão imediata com prospects qualificados e despertem curiosidade sobre estratégias para atrair mais clientes.`,
+    name: '',
+    systemPrompt: '',
     useJinaAI: false,
     messageDelay: 3
   });
@@ -66,6 +66,14 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   const { data: personas = [] } = useAIPersonas();
   const { data: aiSettings } = useAISettings();
   const generateAIFollowup = useAIFollowup();
+  const createDefaultPersonas = useCreateDefaultPersonas();
+
+  // Create default personas if none exist
+  React.useEffect(() => {
+    if (personas.length === 0) {
+      createDefaultPersonas.mutate();
+    }
+  }, [personas.length]);
 
   // Update personaConfig when selectedPersona changes
   React.useEffect(() => {
@@ -79,6 +87,13 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
           messageDelay: 3
         });
       }
+    }
+  }, [selectedPersona, personas]);
+
+  // Auto-select first persona if none selected and personas are available
+  React.useEffect(() => {
+    if (!selectedPersona && personas.length > 0) {
+      setSelectedPersona(personas[0].id);
     }
   }, [selectedPersona, personas]);
 

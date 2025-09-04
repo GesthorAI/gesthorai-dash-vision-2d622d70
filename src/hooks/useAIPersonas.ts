@@ -143,3 +143,69 @@ export const useAISettings = () => {
     enabled: !!user,
   });
 };
+
+// Hook for creating default personas if none exist
+export const useCreateDefaultPersonas = () => {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async () => {
+      // Get current user
+      if (!user) throw new Error('User not authenticated');
+
+      // Check if user already has personas
+      const { data: existingPersonas } = await supabase
+        .from('ai_personas')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1);
+
+      if (existingPersonas && existingPersonas.length > 0) {
+        return existingPersonas;
+      }
+
+      // Create default personas
+      const defaultPersonas = [
+        {
+          user_id: user.id,
+          name: 'Profissional',
+          description: 'Persona profissional para contatos corporativos',
+          tone: 'professional',
+          guidelines: 'Mantenha tom profissional e direto. Foque em benefícios do negócio e resultados concretos.',
+          language: 'pt-BR',
+          is_active: true
+        },
+        {
+          user_id: user.id,
+          name: 'Consultivo',
+          description: 'Persona consultiva para vendas complexas',
+          tone: 'friendly',
+          guidelines: 'Seja consultivo e educativo. Faça perguntas que despertem interesse e demonstre expertise.',
+          language: 'pt-BR',
+          is_active: true
+        },
+        {
+          user_id: user.id,
+          name: 'Amigável',
+          description: 'Persona casual para contatos mais próximos',
+          tone: 'casual',
+          guidelines: 'Use linguagem mais descontraída e próxima. Crie conexão pessoal antes de apresentar soluções.',
+          language: 'pt-BR',
+          is_active: true
+        }
+      ];
+
+      const { data, error } = await supabase
+        .from('ai_personas')
+        .insert(defaultPersonas)
+        .select();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ai-personas", user?.id] });
+    },
+  });
+};
