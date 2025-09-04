@@ -324,11 +324,18 @@ export const usePrepareFollowupRun = () => {
         messageDelay: number;
       };
     }) => {
+      console.log('Calling followup-prepare with params:', params);
+      
       const { data, error } = await supabase.functions.invoke('followup-prepare', {
         body: params,
       });
 
-      if (error) throw error;
+      console.log('followup-prepare response:', { data, error });
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
       return data;
     },
     onSuccess: (data) => {

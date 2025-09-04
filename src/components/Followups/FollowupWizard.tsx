@@ -180,22 +180,36 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
   };
 
   const handlePrepareRun = async () => {
-    if (!currentRunId) return;
+    if (!currentRunId) {
+      console.error('No current run ID available');
+      return;
+    }
+
+    console.log('Starting preparation with:', {
+      runId: currentRunId,
+      filters,
+      templateId: selectedTemplateId,
+      generateWithAI: useAI,
+      useN8n,
+      organizationId: currentOrganizationId
+    });
 
     if (useN8n) {
       handleNextStep();
     } else {
       try {
-        await prepareRun.mutateAsync({
+        const result = await prepareRun.mutateAsync({
           runId: currentRunId,
           filters,
           templateId: selectedTemplateId,
           generateWithAI: useAI,
           personaConfig: useAI ? personaConfig : undefined
         });
+        console.log('Preparation result:', result);
         handleNextStep();
       } catch (error) {
         console.error('Error preparing run:', error);
+        toast.error(`Erro na preparação: ${error.message || 'Unknown error'}`);
       }
     }
   };
