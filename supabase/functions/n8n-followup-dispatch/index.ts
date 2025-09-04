@@ -183,7 +183,7 @@ serve(async (req) => {
         variables: template.variables
       },
       persona: personaConfig || {
-        name: 'Milene',
+        name: 'Assistente',
         systemPrompt: 'Você é um especialista em follow-up consultivo.',
         useJinaAI: false,
         messageDelay: 3
