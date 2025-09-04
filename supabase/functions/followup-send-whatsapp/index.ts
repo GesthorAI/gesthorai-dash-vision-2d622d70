@@ -162,36 +162,88 @@ serve(async (req) => {
           const instancesData = await instanceCheckResponse.json();
           const instances = Array.isArray(instancesData) ? instancesData : [];
           
-          // Find the instance
-          const targetInstance = instances.find(instance => 
-            instance.instance?.instanceName?.toLowerCase() === evolutionInstanceName
+          // Log all instances for debugging
+          console.log(`Evolution API returned ${instances.length} instances:`, 
+            instances.map(inst => {
+              const name1 = inst.instance?.instanceName;
+              const name2 = inst.instanceName; 
+              const name3 = inst.name;
+              const status = inst.instance?.connectionStatus || inst.connectionStatus || inst.status;
+              return { name1, name2, name3, status };
+            })
           );
+          
+          // Find the instance - try multiple field patterns
+          const targetInstance = instances.find(instance => {
+            const instanceName1 = instance.instance?.instanceName?.toLowerCase();
+            const instanceName2 = instance.instanceName?.toLowerCase();
+            const instanceName3 = instance.name?.toLowerCase();
+            
+            const match = instanceName1 === evolutionInstanceName || 
+                         instanceName2 === evolutionInstanceName || 
+                         instanceName3 === evolutionInstanceName;
+            
+            if (match) {
+              const usedField = instanceName1 === evolutionInstanceName ? 'instance.instanceName' :
+                               instanceName2 === evolutionInstanceName ? 'instanceName' : 'name';
+              console.log(`Instance matched using field: ${usedField}`);
+            }
+            
+            return match;
+          });
           
           if (!targetInstance) {
             console.error(`Instance '${evolutionInstanceName}' not found in Evolution API`);
             
             // Auto-fallback: try to find any connected instance for this organization
-            const connectedInstance = instances.find(instance => 
-              instance.instance?.connectionStatus === 'open' || instance.instance?.connectionStatus === 'connecting'
-            );
-            
-            if (connectedInstance && connectedInstance.instance?.instanceName) {
-              console.log(`Auto-fallback: Using connected instance '${connectedInstance.instance.instanceName}' instead of '${evolutionInstanceName}'`);
-              evolutionInstanceName = connectedInstance.instance.instanceName.toLowerCase();
+            const connectedInstance = instances.find(instance => {
+              const status1 = instance.instance?.connectionStatus;
+              const status2 = instance.connectionStatus;
+              const status3 = instance.status;
               
-              // Update the database record to reflect the correct instance name
-              await supabaseClient
-                .from('whatsapp_instances')
-                .update({ name: evolutionInstanceName })
-                .eq('organization_id', organizationId)
-                .eq('evolution_instance_id', connectedInstance.instance.instanceName);
+              return status1 === 'open' || status1 === 'connecting' ||
+                     status2 === 'open' || status2 === 'connecting' ||
+                     status3 === 'open' || status3 === 'connecting';
+            });
+            
+            if (connectedInstance) {
+              const fallbackName = connectedInstance.instance?.instanceName || 
+                                  connectedInstance.instanceName || 
+                                  connectedInstance.name;
+              
+              if (fallbackName) {
+                console.log(`Auto-fallback: Using connected instance '${fallbackName}' instead of '${evolutionInstanceName}'`);
+                evolutionInstanceName = fallbackName.toLowerCase();
                 
+                // Update the database record to reflect the correct instance name
+                await supabaseClient
+                  .from('whatsapp_instances')
+                  .update({ name: evolutionInstanceName })
+                  .eq('organization_id', organizationId);
+              } else {
+                return new Response(
+                  JSON.stringify({ 
+                    error: `Instância '${evolutionInstanceName}' não encontrada e nenhuma instância conectada disponível. Conecte sua instância WhatsApp primeiro.`,
+                    code: 'INSTANCE_NOT_FOUND',
+                    instanceName: evolutionInstanceName,
+                    availableInstances: instances.map(inst => ({
+                      instance_name: inst.instance?.instanceName || inst.instanceName || inst.name,
+                      status: inst.instance?.connectionStatus || inst.connectionStatus || inst.status
+                    }))
+                  }),
+                  { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
             } else {
               return new Response(
                 JSON.stringify({ 
                   error: `Instância '${evolutionInstanceName}' não encontrada e nenhuma instância conectada disponível. Conecte sua instância WhatsApp primeiro.`,
                   code: 'INSTANCE_NOT_FOUND',
-                  instanceName: evolutionInstanceName
+                  instanceName: evolutionInstanceName,
+                  availableInstances: instances.map(inst => ({
+                    instance_name: inst.instance?.instanceName || inst.instanceName || inst.name,
+                    status: inst.instance?.connectionStatus || inst.connectionStatus || inst.status
+                  }))
                 }),
                 { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
               );
