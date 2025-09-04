@@ -96,33 +96,18 @@ export const useCreateOrganization = () => {
   const queryClient = useQueryClient();
   
   return useMutation({
-    mutationFn: async (data: { name: string; slug: string }) => {
+    mutationFn: async (data: { name: string; slug: string }): Promise<Organization> => {
       if (!user) throw new Error('User not authenticated');
       
-      // Criar organização
-      const { data: org, error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          name: data.name,
-          slug: data.slug,
-        })
-        .select()
-        .single();
-        
-      if (orgError) throw orgError;
-      
-      // Adicionar usuário como admin
-      const { error: memberError } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: org.id,
-          user_id: user.id,
-          role: 'admin'
+      // Use RPC function to create organization with admin access
+      const { data: result, error } = await supabase
+        .rpc('create_organization_with_admin', {
+          org_name: data.name,
+          org_slug: data.slug
         });
         
-      if (memberError) throw memberError;
-      
-      return org;
+      if (error) throw error;
+      return result as unknown as Organization;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] });

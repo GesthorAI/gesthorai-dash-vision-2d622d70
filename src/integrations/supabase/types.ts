@@ -1030,6 +1030,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_organization_with_admin: {
+        Args: { org_name: string; org_slug: string }
+        Returns: Json
+      }
+      is_org_admin: {
+        Args: { org_id: string; user_id?: string }
+        Returns: boolean
+      }
+      is_org_member: {
+        Args: { org_id: string; user_id?: string }
+        Returns: boolean
+      }
       migrate_existing_data_to_orgs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
