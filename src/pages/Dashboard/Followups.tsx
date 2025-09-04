@@ -53,6 +53,7 @@ export const Followups: React.FC = () => {
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [showDispatchDialog, setShowDispatchDialog] = useState(false);
   const [selectedRunForDispatch, setSelectedRunForDispatch] = useState<FollowupRun | null>(null);
+  const [showRunDetailsDialog, setShowRunDetailsDialog] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   
   const { settings: uiSettings, updateSettings: updateUISettings } = useUISettings();
@@ -374,7 +375,10 @@ export const Followups: React.FC = () => {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
-                            <DropdownMenuItem onClick={() => setSelectedRunId(run.id)}>
+                            <DropdownMenuItem onClick={() => {
+                              setSelectedRunId(run.id);
+                              setShowRunDetailsDialog(true);
+                            }}>
                               <Eye className="h-4 w-4 mr-2" />
                               Ver Detalhes
                             </DropdownMenuItem>
@@ -413,10 +417,18 @@ export const Followups: React.FC = () => {
                                     <Edit className="h-4 w-4 mr-2" />
                                     {getTemplateValidationStatus(run) === 'missing' ? 'Selecionar template' : 'Template inválido - Selecionar novo'}
                                   </DropdownMenuItem>
-                                 )}
-                               </>
-                             )}
-                             <DropdownMenuSeparator />
+                              )}
+                            </>
+                          )}
+                          {(run.status === 'failed' || run.failed_count > 0) && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleContinueSending(run.id)}>
+                                <Send className="h-4 w-4 mr-2" />
+                                Reenviar Falhados
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          <DropdownMenuSeparator />
                               <DropdownMenuItem 
                                 className="text-red-600"
                                 onClick={() => setDeletingRun(run.id)}
@@ -537,7 +549,25 @@ export const Followups: React.FC = () => {
                               )}
                             </div>
                           </div>
-                        )}
+                         )}
+
+                         {(run.status === 'failed' || run.failed_count > 0) && (
+                           <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                             <div className="text-sm text-red-800 mb-2 font-medium">
+                               {run.failed_count} mensagem{run.failed_count !== 1 ? 's' : ''} falharam
+                             </div>
+                             <Button 
+                               onClick={() => handleContinueSending(run.id)}
+                               disabled={sendMessages.isPending}
+                               size="sm"
+                               variant="outline"
+                               className="border-red-300 text-red-700 hover:bg-red-50"
+                             >
+                               <Send className="h-4 w-4 mr-2" />
+                               {sendMessages.isPending ? 'Reenviando...' : 'Reenviar Falhados'}
+                             </Button>
+                           </div>
+                         )}
                       </div>
                     </CardContent>
                   </Card>
@@ -646,7 +676,7 @@ export const Followups: React.FC = () => {
 
       {/* Run Details Dialog */}
       {selectedRunId && runItems && (
-        <Dialog open={!!selectedRunId} onOpenChange={() => setSelectedRunId('')}>
+        <Dialog open={showRunDetailsDialog} onOpenChange={setShowRunDetailsDialog}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Detalhes da Campanha</DialogTitle>
@@ -655,6 +685,23 @@ export const Followups: React.FC = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
+              <div className="flex items-center justify-between bg-muted/50 p-3 rounded-md">
+                <div className="text-sm">
+                  <strong>Total:</strong> {runItems.length} mensagens
+                </div>
+                <div className="flex gap-4 text-sm">
+                  <span className="text-green-600">
+                    Enviadas: {runItems.filter(i => i.status === 'sent').length}
+                  </span>
+                  <span className="text-red-600">
+                    Falhadas: {runItems.filter(i => i.status === 'failed').length}
+                  </span>
+                  <span className="text-gray-600">
+                    Pendentes: {runItems.filter(i => i.status === 'pending').length}
+                  </span>
+                </div>
+              </div>
+              
               {runItems.map((item) => (
                 <Card key={item.id}>
                   <CardContent className="pt-4">
@@ -671,12 +718,22 @@ export const Followups: React.FC = () => {
                     <p className="text-sm text-muted-foreground mb-2">
                       {(item as any).leads?.business || 'Negócio'} • {(item as any).leads?.phone || 'Telefone'}
                     </p>
-                    <p className="text-sm border-l-2 border-muted pl-3">
+                    <p className="text-sm border-l-2 border-muted pl-3 mb-2">
                       {item.message}
                     </p>
                     {item.error_message && (
-                      <p className="text-xs text-red-500 mt-2">
-                        Erro: {item.error_message}
+                      <div className="bg-red-50 border-l-4 border-red-400 p-2">
+                        <p className="text-xs text-red-700">
+                          <strong>Erro:</strong> {item.error_message}
+                        </p>
+                      </div>
+                    )}
+                    {item.sent_at && (
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Enviado em: {formatDistanceToNow(new Date(item.sent_at), { 
+                          addSuffix: true, 
+                          locale: ptBR 
+                        })}
                       </p>
                     )}
                   </CardContent>
@@ -789,6 +846,68 @@ export const Followups: React.FC = () => {
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dispatch to N8N Dialog */}
+      <Dialog open={showDispatchDialog} onOpenChange={setShowDispatchDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disparar Mensagens via n8n</DialogTitle>
+            <DialogDescription>
+              Selecione uma campanha preparada para enviar via webhook n8n
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {dispatchableRuns.length > 0 ? (
+              <div className="space-y-2">
+                {dispatchableRuns.map((run) => (
+                  <Card 
+                    key={run.id}
+                    className={`cursor-pointer transition-colors ${
+                      selectedRunForDispatch?.id === run.id 
+                        ? 'ring-2 ring-primary bg-primary/5' 
+                        : 'hover:bg-muted/50'
+                    }`}
+                    onClick={() => setSelectedRunForDispatch(run)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium">{run.name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {run.total_leads} leads • Status: {getStatusLabel(run.status)}
+                          </p>
+                        </div>
+                        <Badge 
+                          variant="secondary"
+                          className={`${getStatusColor(run.status)} text-white`}
+                        >
+                          {getStatusLabel(run.status)}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-muted-foreground py-8">
+                Nenhuma campanha preparada disponível para dispatch
+              </p>
+            )}
+            
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setShowDispatchDialog(false)}>
+                Cancelar
+              </Button>
+              <Button 
+                onClick={handleDispatchSelected}
+                disabled={!selectedRunForDispatch || dispatchToN8n.isPending}
+              >
+                {dispatchToN8n.isPending ? 'Enviando...' : 'Disparar via n8n'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
