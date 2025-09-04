@@ -7,16 +7,16 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.followup-prepare]
-verify_jwt = true
+verify_jwt = false
 
 [functions.followup-send-whatsapp]
-verify_jwt = true
+verify_jwt = false
 
 [functions.evolution-instance]
 verify_jwt = true
 
 [functions.n8n-followup-dispatch]
-verify_jwt = true
+verify_jwt = false
 
 [functions.webhook-followup-status]
 verify_jwt = false
