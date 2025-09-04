@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganizationContext } from "@/contexts/OrganizationContext";
 
 export interface Lead {
   id: string;
@@ -16,6 +17,7 @@ export interface Lead {
   niche?: string;
   search_id?: string;
   user_id: string;
+  organization_id: string;
   created_at: string;
   updated_at: string;
   whatsapp_number?: string;
@@ -62,16 +64,17 @@ export interface LeadFilters {
 
 export const useLeads = (filters?: LeadFilters) => {
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useQuery({
-    queryKey: ["leads", filters, user?.id],
+    queryKey: ["leads", filters, currentOrganizationId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !currentOrganizationId) return [];
 
       let query = supabase
         .from('leads')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('organization_id', currentOrganizationId);
 
       // Handle archived filter
       if (filters?.archived !== null && filters?.archived !== undefined) {
@@ -218,7 +221,7 @@ export const useLeads = (filters?: LeadFilters) => {
 
       return data as Lead[];
     },
-    enabled: !!user
+    enabled: !!user && !!currentOrganizationId
   });
 };
 
@@ -253,11 +256,12 @@ export const useLeadsWithRealtime = (filters?: LeadFilters) => {
 
 export const useLeadsByDateRange = (days: number = 30) => {
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useQuery({
-    queryKey: ["leads", "dateRange", days, user?.id],
+    queryKey: ["leads", "dateRange", days, currentOrganizationId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !currentOrganizationId) return [];
       
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
@@ -265,14 +269,14 @@ export const useLeadsByDateRange = (days: number = 30) => {
       const { data, error } = await supabase
         .from("leads")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("organization_id", currentOrganizationId)
         .gte("created_at", startDate.toISOString())
         .order("created_at", { ascending: false });
       
       if (error) throw error;
       return data as Lead[];
     },
-    enabled: !!user,
+    enabled: !!user && !!currentOrganizationId,
   });
 };
 
@@ -325,10 +329,11 @@ export const useLeadsByCity = (city?: string) => {
 export const useCreateLead = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useMutation({
-    mutationFn: async (lead: Omit<Lead, "id" | "created_at" | "updated_at" | "user_id">) => {
-      if (!user) throw new Error('User must be authenticated');
+    mutationFn: async (lead: Omit<Lead, "id" | "created_at" | "updated_at" | "user_id" | "organization_id">) => {
+      if (!user || !currentOrganizationId) throw new Error('User must be authenticated and organization selected');
       
       // Normalize phone and email for duplicate detection
       const normalizePhone = (phone?: string) => {
@@ -344,6 +349,7 @@ export const useCreateLead = () => {
       const leadWithUserId = {
         ...lead,
         user_id: user.id,
+        organization_id: currentOrganizationId,
       };
 
       // Simple insert without complex upsert logic to avoid conflicts

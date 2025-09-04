@@ -10,6 +10,7 @@ import Operations from "@/pages/Dashboard/Operations";
 import { Analytics } from "@/pages/Dashboard/Analytics";
 import { Tasks } from "@/pages/Dashboard/Tasks";
 import { Followups } from "@/pages/Dashboard/Followups";
+import { Organization } from "@/pages/Dashboard/Organization";
 import { AISettings } from "@/pages/Settings/AISettings";
 
 // Placeholder components for other pages are now replaced with real implementations
@@ -26,6 +27,7 @@ const Index = () => {
       'tasks': 'showTasks',
       'followups': 'showFollowups',
       'operations': 'showOperations',
+      'organization': 'showOrganization',
       'ai-settings': 'showAISettings',
       'funnel': 'showFunnel',
       'quality': 'showQuality',
@@ -56,6 +58,8 @@ const Index = () => {
         return <Followups />;
       case "analytics":
         return <Analytics />;
+      case "organization":
+        return <Organization />;
       case "ai-settings":
         return <AISettings />;
       default:

@@ -1,10 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { useOrganizationContext } from "@/contexts/OrganizationContext";
 
 export interface AIPersona {
   id: string;
   user_id: string;
+  organization_id: string;
   name: string;
   description?: string;
   tone: string;
@@ -27,38 +29,41 @@ export interface CreatePersonaData {
 
 export const useAIPersonas = () => {
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useQuery({
-    queryKey: ["ai-personas", user?.id],
+    queryKey: ["ai-personas", currentOrganizationId],
     queryFn: async () => {
-      if (!user) throw new Error("User not authenticated");
+      if (!user || !currentOrganizationId) throw new Error("User not authenticated or organization not selected");
       
       const { data, error } = await supabase
         .from("ai_personas")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("organization_id", currentOrganizationId)
         .eq("is_active", true)
         .order("created_at", { ascending: true });
       
       if (error) throw error;
       return data as AIPersona[];
     },
-    enabled: !!user,
+    enabled: !!user && !!currentOrganizationId,
   });
 };
 
 export const useCreatePersona = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useMutation({
     mutationFn: async (data: CreatePersonaData) => {
-      if (!user) throw new Error("User not authenticated");
+      if (!user || !currentOrganizationId) throw new Error("User not authenticated or organization not selected");
       
       const { data: persona, error } = await supabase
         .from("ai_personas")
         .insert({
           user_id: user.id,
+          organization_id: currentOrganizationId,
           ...data,
         })
         .select()
@@ -68,7 +73,7 @@ export const useCreatePersona = () => {
       return persona as AIPersona;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-personas", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["ai-personas", currentOrganizationId] });
     },
   });
 };
@@ -144,31 +149,32 @@ export const useAISettings = () => {
   });
 };
 
-// Hook for creating default personas if none exist
 export const useCreateDefaultPersonas = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
 
   return useMutation({
     mutationFn: async () => {
       // Get current user
-      if (!user) throw new Error('User not authenticated');
+      if (!user || !currentOrganizationId) throw new Error('User not authenticated or organization not selected');
 
-      // Check if user already has personas
+      // Check if organization already has personas
       const { data: existingPersonas } = await supabase
         .from('ai_personas')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('organization_id', currentOrganizationId)
         .limit(1);
 
       if (existingPersonas && existingPersonas.length > 0) {
         return existingPersonas;
       }
 
-      // Create default personas
+      // Create default personas for the organization
       const defaultPersonas = [
         {
           user_id: user.id,
+          organization_id: currentOrganizationId,
           name: 'Profissional',
           description: 'Persona profissional para contatos corporativos',
           tone: 'professional',
@@ -178,6 +184,7 @@ export const useCreateDefaultPersonas = () => {
         },
         {
           user_id: user.id,
+          organization_id: currentOrganizationId,
           name: 'Consultivo',
           description: 'Persona consultiva para vendas complexas',
           tone: 'friendly',
@@ -187,6 +194,7 @@ export const useCreateDefaultPersonas = () => {
         },
         {
           user_id: user.id,
+          organization_id: currentOrganizationId,
           name: 'Amigável',
           description: 'Persona casual para contatos mais próximos',
           tone: 'casual',
@@ -205,7 +213,7 @@ export const useCreateDefaultPersonas = () => {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["ai-personas", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["ai-personas", currentOrganizationId] });
     },
   });
 };

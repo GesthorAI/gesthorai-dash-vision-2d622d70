@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useOrganizationContext } from '@/contexts/OrganizationContext';
 
 export interface Task {
   id: string;
   user_id: string;
+  organization_id: string;
   lead_id: string | null;
   title: string;
   description: string | null;
@@ -33,11 +35,12 @@ export const useTasks = (filters?: {
   lead_id?: string;
 }) => {
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useQuery({
-    queryKey: ['tasks', user?.id, filters],
+    queryKey: ['tasks', currentOrganizationId, filters],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id || !currentOrganizationId) return [];
       
       let query = supabase
         .from('tasks')
@@ -45,7 +48,7 @@ export const useTasks = (filters?: {
           *,
           leads(name, business)
         `)
-        .eq('user_id', user.id)
+        .eq('organization_id', currentOrganizationId)
         .order('due_date', { ascending: true });
 
       if (filters?.status) {
@@ -65,21 +68,23 @@ export const useTasks = (filters?: {
       if (error) throw error;
       return data as (Task & { leads?: { name: string; business: string } })[];
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!currentOrganizationId,
   });
 };
 
 export const useCreateTask = () => {
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (data: CreateTaskData) => {
-      if (!user?.id) throw new Error('User not authenticated');
+      if (!user?.id || !currentOrganizationId) throw new Error('User not authenticated or organization not selected');
 
       const taskData = {
         user_id: user.id,
+        organization_id: currentOrganizationId,
         title: data.title,
         description: data.description || null,
         due_date: data.due_date,

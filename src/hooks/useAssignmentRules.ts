@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { useOrganizationContext } from '@/contexts/OrganizationContext';
 
 export interface AssignmentRule {
   id: string;
@@ -21,37 +22,40 @@ export interface AssignmentRule {
 
 export const useAssignmentRules = () => {
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useQuery({
-    queryKey: ['assignment-rules'],
+    queryKey: ['assignment-rules', currentOrganizationId],
     queryFn: async () => {
-      if (!user) throw new Error('User not authenticated');
+      if (!user || !currentOrganizationId) throw new Error('User not authenticated or organization not selected');
       
       const { data, error } = await supabase
         .from('assignment_rules')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('organization_id', currentOrganizationId)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data as AssignmentRule[];
     },
-    enabled: !!user
+    enabled: !!user && !!currentOrganizationId
   });
 };
 
 export const useCreateAssignmentRule = () => {
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   const queryClient = useQueryClient();
   
   return useMutation({
     mutationFn: async (data: Omit<AssignmentRule, 'id' | 'user_id' | 'organization_id' | 'created_at' | 'updated_at'>) => {
-      if (!user) throw new Error('User not authenticated');
+      if (!user || !currentOrganizationId) throw new Error('User not authenticated or organization not selected');
       
       const { data: result, error } = await supabase
         .from('assignment_rules')
         .insert({
           user_id: user.id,
+          organization_id: currentOrganizationId,
           ...data
         })
         .select()

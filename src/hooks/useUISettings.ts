@@ -15,6 +15,7 @@ export interface UISettings {
     showTasks: boolean;
     showFollowups: boolean;
     showOperations: boolean;
+    showOrganization: boolean;
     showAISettings: boolean;
     showFunnel: boolean;
     showQuality: boolean;
@@ -41,6 +42,7 @@ const DEFAULT_UI_SETTINGS: UISettings = {
     showTasks: true,
     showFollowups: true,
     showOperations: true,
+    showOrganization: true,
     showAISettings: true,
     showFunnel: false,
     showQuality: false,

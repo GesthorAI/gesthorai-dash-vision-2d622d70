@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
-import { Menu, LogOut, Settings, Eye, BarChart3, Search, CheckSquare, MessageSquare, Filter, Award, Cog, Brain, Monitor, X } from "lucide-react";
+import { Menu, LogOut, Settings, Eye, BarChart3, Search, CheckSquare, MessageSquare, Filter, Award, Cog, Brain, Monitor, X, Building2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUISettings } from "@/hooks/useUISettings";
 import { RealtimeNotifications } from "@/components/Notifications/RealtimeNotifications";
@@ -29,6 +29,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
     { id: "quality", label: "Qualidade & Score", icon: Award },
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "operations", label: "Operacional", icon: Settings },
+    { id: "organization", label: "Organização", icon: Building2 },
     { id: "ai-settings", label: "Configurações IA", icon: Cog },
   ];
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -68,6 +69,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
       'operations': 'showOperations',
       'tasks': 'showTasks',
       'followups': 'showFollowups',
+      'organization': 'showOrganization',
       'ai-settings': 'showAISettings',
     };
     const key = pageVisibilityMap[item.id];
@@ -342,6 +344,18 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
                     onCheckedChange={(checked) => 
                       updateSettings({ 
                         pagesVisibility: { ...settings.pagesVisibility, showOperations: checked } 
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="show-organization">Organização</Label>
+                  <Switch
+                    id="show-organization"
+                    checked={settings.pagesVisibility.showOrganization}
+                    onCheckedChange={(checked) => 
+                      updateSettings({ 
+                        pagesVisibility: { ...settings.pagesVisibility, showOrganization: checked } 
                       })
                     }
                   />

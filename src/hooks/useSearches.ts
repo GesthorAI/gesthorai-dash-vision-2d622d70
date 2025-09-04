@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useOrganizationContext } from "@/contexts/OrganizationContext";
 
 export interface Search {
   id: string;
@@ -9,6 +10,7 @@ export interface Search {
   status: string;
   total_leads: number;
   user_id: string;
+  organization_id: string;
   webhook_id?: string;
   created_at: string;
   updated_at: string;
@@ -16,22 +18,23 @@ export interface Search {
 
 export const useSearches = () => {
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useQuery({
-    queryKey: ["searches", user?.id],
+    queryKey: ["searches", currentOrganizationId],
     queryFn: async () => {
-      if (!user) return [];
+      if (!user || !currentOrganizationId) return [];
       
       const { data, error } = await supabase
         .from("searches")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("organization_id", currentOrganizationId)
         .order("created_at", { ascending: false });
       
       if (error) throw error;
       return data as Search[];
     },
-    enabled: !!user,
+    enabled: !!user && !!currentOrganizationId,
   });
 };
 
@@ -82,16 +85,18 @@ export const useSearchesByStatus = (status: string) => {
 export const useCreateSearch = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { currentOrganizationId } = useOrganizationContext();
   
   return useMutation({
-    mutationFn: async (search: Omit<Search, "id" | "created_at" | "updated_at" | "user_id">) => {
-      if (!user) throw new Error('User must be authenticated');
+    mutationFn: async (search: Omit<Search, "id" | "created_at" | "updated_at" | "user_id" | "organization_id">) => {
+      if (!user || !currentOrganizationId) throw new Error('User must be authenticated and organization selected');
       
       const { data, error } = await supabase
         .from("searches")
         .insert({
           ...search,
           user_id: user.id,
+          organization_id: currentOrganizationId,
         })
         .select()
         .single();
