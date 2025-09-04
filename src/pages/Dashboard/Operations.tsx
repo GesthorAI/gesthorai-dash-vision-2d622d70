@@ -15,8 +15,12 @@ import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useFilters } from "@/hooks/useFilters";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useSelection } from "@/hooks/useSelection";
-import { PlayCircle, Users, Settings, MessageSquare, Filter, X } from "lucide-react";
+import { PlayCircle, Users, Settings, MessageSquare, Filter, X, Building2 } from "lucide-react";
 import { WhatsAppConnectDialog } from "@/components/WhatsApp/WhatsAppConnectDialog";
+import { OrganizationSelector } from "@/components/Organization/OrganizationSelector";
+import { OrganizationSettings } from "@/components/Organization/OrganizationSettings";
+import { MembersManagement } from "@/components/Organization/MembersManagement";
+import { Tabs as OrgTabs, TabsContent as OrgTabsContent, TabsList as OrgTabsList, TabsTrigger as OrgTabsTrigger } from "@/components/ui/tabs";
 
 const Operations = () => {
   const [activeTab, setActiveTab] = useState("team");
@@ -240,6 +244,33 @@ const Operations = () => {
         {settings.operationsTabsVisibility.showSettings && (
           <TabsContent value="settings">
             <div className="space-y-6">
+              {/* Organization Management */}
+              <Card className="p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Building2 className="h-5 w-5" />
+                  <h3 className="text-lg font-semibold">Organização</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <span className="text-sm font-medium">Organização atual:</span>
+                    <OrganizationSelector />
+                  </div>
+                  
+                  <OrgTabs defaultValue="settings" className="w-full">
+                    <OrgTabsList className="grid w-full grid-cols-2">
+                      <OrgTabsTrigger value="settings">Configurações</OrgTabsTrigger>
+                      <OrgTabsTrigger value="members">Membros</OrgTabsTrigger>
+                    </OrgTabsList>
+                    <OrgTabsContent value="settings" className="mt-4">
+                      <OrganizationSettings />
+                    </OrgTabsContent>
+                    <OrgTabsContent value="members" className="mt-4">
+                      <MembersManagement />
+                    </OrgTabsContent>
+                  </OrgTabs>
+                </div>
+              </Card>
+
               <Card className="p-6">
                 <h3 className="text-lg font-semibold mb-4">Integração WhatsApp</h3>
                 <p className="text-muted-foreground mb-4">

@@ -42,7 +42,7 @@ const DEFAULT_UI_SETTINGS: UISettings = {
     showTasks: true,
     showFollowups: true,
     showOperations: true,
-    showOrganization: true,
+    showOrganization: false,
     showAISettings: true,
     showFunnel: false,
     showQuality: false,

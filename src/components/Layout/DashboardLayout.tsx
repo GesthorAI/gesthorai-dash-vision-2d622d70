@@ -11,7 +11,6 @@ import { Menu, LogOut, Settings, Eye, BarChart3, Search, CheckSquare, MessageSqu
 import { useToast } from "@/hooks/use-toast";
 import { useUISettings } from "@/hooks/useUISettings";
 import { RealtimeNotifications } from "@/components/Notifications/RealtimeNotifications";
-import { OrganizationSelector } from "@/components/Organization/OrganizationSelector";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -94,11 +93,6 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
                 Gesthor<span className="text-accent">AI</span>
               </h1>
               <p className="text-xs text-muted-foreground">Lead Flow Dashboard</p>
-            </div>
-            
-            {/* Organization Selector */}
-            <div className="ml-4 border-l pl-4">
-              <OrganizationSelector />
             </div>
           </div>
 
