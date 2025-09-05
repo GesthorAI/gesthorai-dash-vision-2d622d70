@@ -104,11 +104,11 @@ serve(async (req) => {
       .eq('organization_id', organizationId)
       .single();
 
-    // Fetch AI settings for user
+    // Fetch AI settings for organization
     const { data: aiSettings } = await supabaseClient
       .from('ai_settings')
       .select('feature_flags, limits')
-      .eq('user_id', user.id)
+      .eq('organization_id', organizationId)
       .single();
 
     // Default AI configuration
@@ -351,17 +351,20 @@ Site: ${jinaData ? 'Analisado' : 'N/A'}`;
                 .insert({
                   user_id: user.id,
                   model: aiModel,
-                  prompt_type: 'followup_generation',
+                  scope: 'followup_generation',
                   tokens_in: tokensIn,
                   tokens_out: tokensOut,
-                  total_tokens: totalTokens,
                   cost_estimate: costEstimate,
                   execution_time_ms: 0, // We don't track this here
-                  metadata: {
+                  input_json: {
                     lead_id: lead.id,
                     business: lead.business,
                     niche: lead.niche
-                  }
+                  },
+                  output_json: {
+                    content: content
+                  },
+                  run_id: runId
                 });
             } catch (logError) {
               console.error('Failed to log AI usage:', logError);

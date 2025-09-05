@@ -9,6 +9,9 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/contexts/OrganizationContext";
 import { 
   Brain, 
   Key, 
@@ -29,7 +32,7 @@ import {
   AlertTriangle,
   Target
 } from "lucide-react";
-import { useAISettings } from "@/hooks/useAIPersonas";
+import { useAISettings } from "@/hooks/useAISettings";
 import { useUpdateAISettings, useAISecretStatus, useAISmoketest } from "@/hooks/useUpdateAISettings";
 import { useAIPersonas, useCreatePersona, useUpdatePersona, AIPersona } from "@/hooks/useAIPersonas";
 import { useUserAPIKeyStatus, useSaveUserAPIKey, useRemoveUserAPIKey } from "@/hooks/useUserAPIKeys";
