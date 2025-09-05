@@ -10,6 +10,7 @@ interface StartSearchPayload {
   niche: string;
   city: string;
   search_id?: string;
+  organization_id: string;
 }
 
 serve(async (req) => {
