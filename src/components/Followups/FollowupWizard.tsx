@@ -57,6 +57,11 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
     useJinaAI: false,
     messageDelay: 3
   });
+  const [timerConfig, setTimerConfig] = useState({
+    interLeadDelayMs: 3000,
+    intraLeadDelayMs: 1000,
+    jitterPct: 0.2
+  });
 
   const { data: leads } = useLeads(filters);
   const { data: templates } = useMessageTemplates();
@@ -253,7 +258,10 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
         await sendMessages.mutateAsync({
           runId: currentRunId,
           batchSize: 10,
-          delayMs: personaConfig.messageDelay * 1000,
+          delayMs: personaConfig.messageDelay * 1000, // Legacy compatibility
+          interLeadDelayMs: timerConfig.interLeadDelayMs,
+          intraLeadDelayMs: timerConfig.intraLeadDelayMs,
+          jitterPct: timerConfig.jitterPct,
           instanceName: storedInstanceName || undefined,
           organizationId: currentOrganizationId
         });
@@ -526,21 +534,44 @@ export const FollowupWizard: React.FC<WizardProps> = ({ onClose }) => {
             {aiGeneratedMessages.map((msg, index) => (
               <div
                 key={index}
-                className={`p-3 border rounded-md cursor-pointer transition-colors ${
+                className={`p-3 border rounded-md transition-colors ${
                   msg.selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
                 }`}
-                onClick={() => {
-                  setAiGeneratedMessages(prev => 
-                    prev.map((m, i) => ({ ...m, selected: i === index }))
-                  );
-                }}
               >
-                <div className="flex items-start justify-between">
+                <div 
+                  className="flex items-start justify-between cursor-pointer"
+                  onClick={() => {
+                    setAiGeneratedMessages(prev => 
+                      prev.map((m, i) => ({ ...m, selected: i === index }))
+                    );
+                  }}
+                >
                   <p className="text-sm flex-1">{msg.message}</p>
                   <div className="ml-2 text-xs text-muted-foreground">
                     Confiança: {Math.round(msg.confidence * 100)}%
                   </div>
                 </div>
+                
+                {msg.selected && (
+                  <div className="mt-3 pt-3 border-t">
+                    <Label htmlFor={`edit-message-${index}`} className="text-xs text-muted-foreground">
+                      Editar mensagem selecionada:
+                    </Label>
+                    <Textarea
+                      id={`edit-message-${index}`}
+                      value={msg.message}
+                      onChange={(e) => {
+                        setAiGeneratedMessages(prev => 
+                          prev.map((m, i) => 
+                            i === index ? { ...m, message: e.target.value } : m
+                          )
+                        );
+                      }}
+                      className="mt-1"
+                      rows={3}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>

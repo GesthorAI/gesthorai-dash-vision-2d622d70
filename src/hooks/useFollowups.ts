@@ -376,6 +376,9 @@ export const useSendFollowupMessages = () => {
       runId: string;
       batchSize?: number;
       delayMs?: number;
+      interLeadDelayMs?: number;
+      intraLeadDelayMs?: number;
+      jitterPct?: number;
       instanceName?: string;
       organizationId?: string;
     }) => {

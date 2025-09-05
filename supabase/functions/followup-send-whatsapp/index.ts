@@ -11,6 +11,9 @@ interface SendRequest {
   runId: string;
   batchSize?: number;
   delayMs?: number;
+  interLeadDelayMs?: number;
+  intraLeadDelayMs?: number;
+  jitterPct?: number;
 }
 
 interface FollowupItem {
@@ -53,7 +56,10 @@ serve(async (req) => {
 
     const body: SendRequest & { instanceName?: string; organizationId?: string } = await req.json();
     const batchSize = body.batchSize || 10;
-    const delayMs = body.delayMs || 2000; // 2 second delay between messages
+    const delayMs = body.delayMs || 2000; // Legacy compatibility
+    const interLeadDelayMs = body.interLeadDelayMs || delayMs || 3000; // 3s between leads
+    const intraLeadDelayMs = body.intraLeadDelayMs || 1000; // 1s between messages of same lead
+    const jitterPct = Math.min(Math.max(body.jitterPct || 0.2, 0), 0.5); // 20% jitter by default, max 50%
     
     console.log(`Starting WhatsApp sending for run ${body.runId}`);
 
@@ -353,7 +359,8 @@ serve(async (req) => {
       // Sort messages by sequence to ensure correct order
       leadMessages.sort((a, b) => (a.message_sequence || 1) - (b.message_sequence || 1));
 
-      for (const item of leadMessages) {
+      for (let msgIndex = 0; msgIndex < leadMessages.length; msgIndex++) {
+        const item = leadMessages[msgIndex];
         try {
           const lead = leadsMap.get(item.lead_id);
           if (!lead) {
@@ -480,11 +487,13 @@ serve(async (req) => {
             failedCount++;
           }
 
-          // Add delay between messages within the same lead sequence  
-          if (leadMessages.indexOf(item) < leadMessages.length - 1) {
-            console.log(`Waiting ${delayMs}ms before next message in sequence...`);
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-          }
+        // Wait between messages within the same lead sequence
+        if (msgIndex < leadMessages.length - 1 && intraLeadDelayMs > 0) {
+          const jitter = intraLeadDelayMs * jitterPct * (Math.random() * 2 - 1); // -jitterPct to +jitterPct
+          const actualDelay = Math.max(intraLeadDelayMs + jitter, 500); // Minimum 500ms
+          console.log(`Waiting ${Math.round(actualDelay)}ms before next message for same lead...`);
+          await new Promise(resolve => setTimeout(resolve, actualDelay));
+        }
 
         } catch (error) {
           console.error(`Error processing item ${item.id}:`, error);
@@ -510,11 +519,14 @@ serve(async (req) => {
           .eq('id', leadId);
       }
 
-      // Add delay between different leads to avoid rate limiting
+      // Wait between leads (interLeadDelayMs) - only if not the last lead
       const leadIds = Array.from(messagesByLead.keys());
-      if (leadIds.indexOf(leadId) < leadIds.length - 1) {
-        console.log(`Waiting ${Math.min(delayMs, 1000)}ms before next lead...`);
-        await new Promise(resolve => setTimeout(resolve, Math.min(delayMs, 1000)));
+      const isLastLead = leadIds.indexOf(leadId) === leadIds.length - 1;
+      if (!isLastLead && interLeadDelayMs > 0) {
+        const jitter = interLeadDelayMs * jitterPct * (Math.random() * 2 - 1); // -jitterPct to +jitterPct
+        const actualDelay = Math.max(interLeadDelayMs + jitter, 1000); // Minimum 1s between leads
+        console.log(`Waiting ${Math.round(actualDelay)}ms before next lead...`);
+        await new Promise(resolve => setTimeout(resolve, actualDelay));
       }
     }
 
