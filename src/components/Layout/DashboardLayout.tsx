@@ -11,6 +11,7 @@ import { Menu, LogOut, Settings, Eye, BarChart3, Search, CheckSquare, MessageSqu
 import { useToast } from "@/hooks/use-toast";
 import { useUISettings } from "@/hooks/useUISettings";
 import { RealtimeNotifications } from "@/components/Notifications/RealtimeNotifications";
+import { AIKeyReminder } from "./AIKeyReminder";
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -269,6 +270,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
 
       {/* Main Content */}
       <main className={`container mx-auto ${settings.compactMode ? 'p-4' : 'p-6'}`}>
+        <AIKeyReminder />
         {children}
       </main>
 

@@ -8,13 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, CheckCircle, AlertCircle, XCircle, Clock } from "lucide-react";
+import { Search, CheckCircle, AlertCircle, XCircle, Clock, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRecentSearches, useCreateSearch } from "@/hooks/useSearches";
 import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useRealtimeSearches } from "@/hooks/useRealtimeSearches";
 import { useAuth } from "@/hooks/useAuth";
 import { useLeadScoring } from "@/hooks/useLeadScoring";
+import { useCreateFollowupRun, usePrepareFollowupRun } from "@/hooks/useFollowups";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -23,6 +24,7 @@ import { AdvancedSearchForm } from "@/components/Search/AdvancedSearchForm";
 import { LeadCaptureForm } from "@/components/Search/LeadCaptureForm";
 import { ImportExportPanel } from "@/components/Search/ImportExportPanel";
 import { useSearchOptions } from "@/hooks/useSearchOptions";
+import { useNavigate } from "react-router-dom";
 
 export const LeadSearch = () => {
   const [selectedNicho, setSelectedNicho] = useState<string>("");
@@ -34,11 +36,14 @@ export const LeadSearch = () => {
   const { isConnected } = useRealtimeSearches();
   const { session } = useAuth();
   const { niches, cities, addNiche, addCity } = useSearchOptions();
+  const navigate = useNavigate();
 
   // Fetch real data - using realtime for leads to get automatic updates
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(20);
   const { data: recentLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime({ dateRange: 1 });
   const createSearch = useCreateSearch();
+  const createFollowupRun = useCreateFollowupRun();
+  const prepareFollowupRun = usePrepareFollowupRun();
   
   // Calculate lead scores for display
   const { scoredLeads } = useLeadScoring(recentLeads);
@@ -135,6 +140,55 @@ export const LeadSearch = () => {
         return <AlertCircle className="h-4 w-4 text-destructive" />;
       default:
         return <AlertCircle className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
+  const handleDispatchMessage = async (searchId: string, niche: string, city: string) => {
+    try {
+      toast({
+        title: "Preparando disparos...",
+        description: "Criando campanha de primeira abordagem",
+      });
+
+      // Create follow-up run for "Primeira Abordagem"
+      const runData = await createFollowupRun.mutateAsync({
+        name: `Primeira Abordagem - ${niche} em ${city}`,
+        filters: {
+          searchId: searchId,
+          niche: niche,
+          city: city,
+          status: ["novo"] // Only target new leads
+        },
+        template_id: null, // Will use default "Primeira Abordagem" template
+        status: "preparing"
+      });
+
+      // Prepare the run (populate leads)
+      await prepareFollowupRun.mutateAsync({
+        runId: runData.id,
+        filters: {
+          searchId: searchId,
+          niche: niche,
+          city: city,
+          status: ["novo"]
+        },
+        templateId: "", // Will be set during preparation
+      });
+
+      toast({
+        title: "Campanha criada!",
+        description: "Redirecionando para configurar os disparos...",
+      });
+
+      // Navigate to follow-ups page
+      navigate("/dashboard/followups");
+    } catch (error) {
+      console.error("Erro ao criar campanha:", error);
+      toast({
+        title: "Erro ao criar campanha",
+        description: "Não foi possível criar a campanha de disparos.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -265,6 +319,7 @@ export const LeadSearch = () => {
                   <TableHead>Nicho</TableHead>
                   <TableHead>Cidade</TableHead>
                   <TableHead>Total</TableHead>
+                  <TableHead>Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -278,6 +333,20 @@ export const LeadSearch = () => {
                     <TableCell>{search.city}</TableCell>
                     <TableCell className="font-medium">
                       <Badge variant="secondary">{search.total_leads}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {search.status === "concluida" && search.total_leads > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDispatchMessage(search.id, search.niche, search.city)}
+                          className="gap-2"
+                          disabled={createFollowupRun.isPending || prepareFollowupRun.isPending}
+                        >
+                          <MessageSquare className="h-3 w-3" />
+                          Disparar Mensagem
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

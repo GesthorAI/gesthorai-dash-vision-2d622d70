@@ -7,15 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { BulkActionsPanel } from "@/components/Operations/BulkActionsPanel";
 import { LeadAssignment } from "@/components/Operations/LeadAssignment";
 import { WorkflowAutomation } from "@/components/Operations/WorkflowAutomation";
-import { FollowupWizard } from "@/components/Followups/FollowupWizard";
 import { AdvancedFilters } from "@/components/Filters/AdvancedFilters";
 import { LeadsTableWithData } from "@/components/Operations/LeadsTableWithData";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useFilters } from "@/hooks/useFilters";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useSelection } from "@/hooks/useSelection";
-import { PlayCircle, Users, Settings, MessageSquare, Filter, X, Building2 } from "lucide-react";
+import { PlayCircle, Users, Settings, Filter, X, Building2 } from "lucide-react";
 import { WhatsAppConnectDialog } from "@/components/WhatsApp/WhatsAppConnectDialog";
 import { OrganizationSelector } from "@/components/Organization/OrganizationSelector";
 import { OrganizationSettings } from "@/components/Organization/OrganizationSettings";
@@ -24,7 +22,6 @@ import { Tabs as OrgTabs, TabsContent as OrgTabsContent, TabsList as OrgTabsList
 
 const Operations = () => {
   const [activeTab, setActiveTab] = useState("team");
-  const [showFollowupWizard, setShowFollowupWizard] = useState(false);
   const { settings } = useUISettings();
   const globalFilters = useFilters();
   const { pendingFilters, clearPendingFilters } = useNavigation();
@@ -105,17 +102,11 @@ const Operations = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Operações</h1>
-          <p className="text-muted-foreground">
-            Gerencie leads em lote, configure automações e gerencie sua equipe
-          </p>
-        </div>
-        <Button onClick={() => setShowFollowupWizard(true)} className="gap-2">
-          <MessageSquare className="h-4 w-4" />
-          Novo Follow-up
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold">Operações</h1>
+        <p className="text-muted-foreground">
+          Gerencie leads em lote, configure automações e gerencie sua equipe
+        </p>
       </div>
 
       {/* Global Filters */}
@@ -290,18 +281,6 @@ const Operations = () => {
         )}
       </Tabs>
 
-      {/* Follow-up Wizard Dialog */}
-      <Dialog open={showFollowupWizard} onOpenChange={setShowFollowupWizard}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Criar Follow-up</DialogTitle>
-            <DialogDescription>
-              Configure filtros, selecione templates de mensagem e envie follow-ups automatizados via WhatsApp
-            </DialogDescription>
-          </DialogHeader>
-          <FollowupWizard onClose={() => setShowFollowupWizard(false)} />
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
