@@ -104,6 +104,20 @@ serve(async (req) => {
       .eq('organization_id', organizationId)
       .single();
 
+    // Fetch AI settings for user
+    const { data: aiSettings } = await supabaseClient
+      .from('ai_settings')
+      .select('feature_flags, limits')
+      .eq('user_id', user.id)
+      .single();
+
+    // Default AI configuration
+    const defaultModel = 'gpt-5-mini-2025-08-07';
+    const defaultMaxTokens = 220;
+    
+    const aiModel = aiSettings?.feature_flags?.model || defaultModel;
+    const maxTokens = aiSettings?.feature_flags?.max_tokens || defaultMaxTokens;
+
     if (!membershipData) {
       console.error('User not authorized for organization:', organizationId);
       return new Response(
@@ -304,7 +318,7 @@ Site: ${jinaData ? 'Analisado' : 'N/A'}`;
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: 'gpt-5-mini-2025-08-07',
+              model: aiModel,
               messages: [
                 {
                   role: 'system',
@@ -315,7 +329,7 @@ Site: ${jinaData ? 'Analisado' : 'N/A'}`;
                   content: `Gere 3 mensagens consultivas para ${lead.business || lead.name} no segmento ${lead.niche || 'geral'}. Máximo 200 tokens total.`
                 }
               ],
-              max_completion_tokens: 300
+              max_completion_tokens: maxTokens
             }),
           });
 
@@ -323,12 +337,42 @@ Site: ${jinaData ? 'Analisado' : 'N/A'}`;
             const aiData = await openAIResponse.json();
             const content = aiData.choices[0].message.content;
             
+            // Log AI usage
+            const tokensIn = aiData.usage?.prompt_tokens || 0;
+            const tokensOut = aiData.usage?.completion_tokens || 0;
+            const totalTokens = aiData.usage?.total_tokens || 0;
+            
+            // Estimate cost (rough estimate for gpt-5-mini)
+            const costEstimate = (tokensIn * 0.00015 + tokensOut * 0.0006) / 1000;
+            
+            try {
+              await supabaseClient
+                .from('ai_prompt_logs')
+                .insert({
+                  user_id: user.id,
+                  model: aiModel,
+                  prompt_type: 'followup_generation',
+                  tokens_in: tokensIn,
+                  tokens_out: tokensOut,
+                  total_tokens: totalTokens,
+                  cost_estimate: costEstimate,
+                  execution_time_ms: 0, // We don't track this here
+                  metadata: {
+                    lead_id: lead.id,
+                    business: lead.business,
+                    niche: lead.niche
+                  }
+                });
+            } catch (logError) {
+              console.error('Failed to log AI usage:', logError);
+            }
+            
             try {
               // Parse JSON response
               const parsedMessages = JSON.parse(content);
               if (Array.isArray(parsedMessages) && parsedMessages.length === 3) {
                 messages = parsedMessages.map(msg => interpolateMessage(msg.message, lead));
-                console.log(`Generated 3 AI messages for lead ${lead.id}`);
+                console.log(`Generated 3 AI messages for lead ${lead.id} using ${tokensOut} tokens`);
               } else {
                 throw new Error('Invalid message format');
               }
