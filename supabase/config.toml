@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.webhook-inbound-messages]
 verify_jwt = false
+
+[functions.send-invite]
+verify_jwt = true
