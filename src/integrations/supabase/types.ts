@@ -1183,6 +1183,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      redact_pii_from_json: {
+        Args: { input_json: Json }
+        Returns: Json
+      }
       sparsevec_out: {
         Args: { "": unknown }
         Returns: unknown

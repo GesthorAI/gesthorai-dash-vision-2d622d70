@@ -18,8 +18,30 @@ serve(async (req) => {
   }
 
   try {
+    // Validate webhook token for security
+    const webhookToken = req.headers.get('x-webhook-token');
+    const expectedToken = Deno.env.get('WEBHOOK_SHARED_TOKEN');
+    
+    if (!expectedToken) {
+      console.error('WEBHOOK_SHARED_TOKEN not configured');
+      return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (webhookToken !== expectedToken) {
+      console.error('Invalid webhook token provided');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('Received webhook request');
+    
     const body = await req.json();
-    console.log('Received inbound message:', JSON.stringify(body, null, 2));
+    console.log('Webhook body:', JSON.stringify(body, null, 2));
 
     // Extract message data based on Evolution API format
     const { 

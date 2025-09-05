@@ -8,10 +8,8 @@ const corsHeaders = {
 };
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 const openaiKey = Deno.env.get('OPENAI_API_KEY')!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -19,16 +17,65 @@ serve(async (req) => {
   }
 
   try {
-    const { 
-      query, 
-      user_id, 
-      organization_id, 
-      limit = 50,
-      similarity_threshold = 0.7 
-    } = await req.json();
+    // Get the authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    if (!query || !user_id) {
-      throw new Error('query and user_id are required');
+    // Initialize Supabase client with user's auth
+    const supabaseClient = createClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      { 
+        auth: { 
+          autoRefreshToken: false,
+          persistSession: false 
+        },
+        global: { 
+          headers: { 
+            Authorization: authHeader 
+          } 
+        }
+      }
+    );
+
+    // Verify user authentication and get user data
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { query, organization_id, limit = 50, similarity_threshold = 0.7 } = await req.json();
+    
+    if (!query || !organization_id) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Missing required fields: query, organization_id' 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify user is a member of the organization
+    const { data: membership, error: membershipError } = await supabaseClient
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', organization_id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (membershipError || !membership) {
+      return new Response(
+        JSON.stringify({ error: 'User is not a member of this organization' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('Semantic search query:', query);
@@ -55,8 +102,8 @@ serve(async (req) => {
     const embeddingData = await embeddingResponse.json();
     const queryEmbedding = embeddingData.data[0].embedding;
 
-    // Perform vector similarity search
-    const { data: leads, error } = await supabase.rpc('search_leads_by_similarity', {
+    // Perform vector similarity search using authenticated client
+    const { data: leads, error } = await supabaseClient.rpc('search_leads_by_similarity', {
       query_embedding: queryEmbedding,
       similarity_threshold,
       max_results: limit,
@@ -67,7 +114,7 @@ serve(async (req) => {
       // If RPC doesn't exist, fall back to direct SQL
       console.log('RPC not found, using direct query');
       
-      const { data: fallbackLeads, error: fallbackError } = await supabase
+      const { data: fallbackLeads, error: fallbackError } = await supabaseClient
         .from('leads')
         .select(`
           id, name, business, city, niche, phone, email, status, score,

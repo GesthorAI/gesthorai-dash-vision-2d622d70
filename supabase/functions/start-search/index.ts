@@ -43,69 +43,95 @@ serve(async (req) => {
       );
     }
     
-    // Initialize Supabase client with service role key
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    const payload: StartSearchPayload = await req.json();
-    console.log('Start search payload:', JSON.stringify(payload, null, 2));
-    
-    const { niche, city, search_id } = payload;
-    
-    // Validate required fields
-    if (!niche || !city) {
-      console.error('Missing required fields - niche and city are required');
-      return new Response(
-        JSON.stringify({ error: 'niche and city are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // Get user from authorization header
+    // Get the authorization header for user authentication
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      console.error('Missing authorization header');
-      return new Response(
-        JSON.stringify({ error: 'Authorization required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Missing authorization' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
+
+    // Initialize Supabase client with user's auth for membership validation
+    const supabaseClient = createClient(
+      supabaseUrl,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { 
+        auth: { 
+          autoRefreshToken: false,
+          persistSession: false 
+        },
+        global: { 
+          headers: { 
+            Authorization: authHeader 
+          } 
+        }
+      }
+    );
+
+    // Get user from auth
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     
-    const { data: { user }, error: userError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
     if (userError || !user) {
-      console.error('Invalid authorization:', userError);
-      return new Response(
-        JSON.stringify({ error: 'Invalid authorization' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return new Response(JSON.stringify({ error: 'Invalid authentication' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
+
+    const body = await req.json();
+    const { niche, city, search_id, organization_id } = body as StartSearchPayload;
+    
+    if (!niche || !city || !organization_id) {
+      return new Response(JSON.stringify({ error: 'Missing required fields: niche, city, organization_id' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Verify user is a member of the organization
+    const { data: membership, error: membershipError } = await supabaseClient
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', organization_id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (membershipError || !membership) {
+      return new Response(JSON.stringify({ error: 'User is not a member of this organization' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Initialize service role client for database operations
+    const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
     
     console.log('User authenticated:', user.id);
     
-    let finalSearchId = search_id;
-    
     // If no search_id provided, create a new search record
-    if (!search_id) {
-      const { data: newSearch, error: searchError } = await supabase
+    let currentSearchId = search_id;
+    if (!currentSearchId) {
+      const { data: searchData, error: searchError } = await supabaseService
         .from('searches')
         .insert({
           niche,
           city,
-          status: 'processando',
-          user_id: user.id
+          user_id: user.id,
+          organization_id,
+          status: 'processando'
         })
         .select()
         .single();
         
       if (searchError) {
-        console.error('Error creating search:', searchError);
         return new Response(
-          JSON.stringify({ error: 'Failed to create search record', details: searchError.message }),
+          JSON.stringify({ error: 'Failed to create search record' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      finalSearchId = newSearch.id;
-      console.log('Created new search:', finalSearchId);
+      currentSearchId = searchData.id;
     }
     
     // Prepare callback URL using environment variable
@@ -113,7 +139,7 @@ serve(async (req) => {
     
     // Prepare payload for n8n
     const n8nPayload = {
-      search_id: finalSearchId,
+      search_id: currentSearchId,
       niche,
       city,
       callback_url: callbackUrl,
@@ -143,10 +169,10 @@ serve(async (req) => {
       });
       
       // Update search status to failed
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseService
         .from('searches')
         .update({ status: 'falhou' })
-        .eq('id', finalSearchId);
+        .eq('id', currentSearchId);
         
       if (updateError) {
         console.error('Failed to update search status to failed:', updateError);
@@ -161,11 +187,11 @@ serve(async (req) => {
       );
     }
     
-    console.log('Search queued successfully:', finalSearchId);
+    console.log('Search queued successfully:', currentSearchId);
     
     return new Response(
       JSON.stringify({ 
-        search_id: finalSearchId,
+        search_id: currentSearchId,
         status: 'queued',
         message: 'Search job queued successfully'
       }),

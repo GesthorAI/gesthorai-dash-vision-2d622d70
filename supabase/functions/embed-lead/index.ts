@@ -8,10 +8,8 @@ const corsHeaders = {
 };
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 const openaiKey = Deno.env.get('OPENAI_API_KEY')!;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -19,23 +17,82 @@ serve(async (req) => {
   }
 
   try {
-    const { lead_id, lead_data } = await req.json();
-
-    if (!lead_id) {
-      throw new Error('lead_id is required');
+    // Get the authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    // Get lead data if not provided
+    // Initialize Supabase client with user's auth
+    const supabaseClient = createClient(
+      supabaseUrl,
+      supabaseAnonKey,
+      { 
+        auth: { 
+          autoRefreshToken: false,
+          persistSession: false 
+        },
+        global: { 
+          headers: { 
+            Authorization: authHeader 
+          } 
+        }
+      }
+    );
+
+    // Verify user authentication and get user data
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { lead_id, lead_data } = await req.json();
+    
+    if (!lead_id) {
+      return new Response(
+        JSON.stringify({ error: 'lead_id is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Fetch lead data if not provided using authenticated client
     let leadInfo = lead_data;
     if (!leadInfo) {
-      const { data: lead, error: leadError } = await supabase
+      const { data, error } = await supabaseClient
         .from('leads')
-        .select('name, business, city, niche, phone, email')
+        .select('*')
         .eq('id', lead_id)
         .single();
 
-      if (leadError) throw leadError;
-      leadInfo = lead;
+      if (error) {
+        return new Response(
+          JSON.stringify({ error: 'Lead not found', details: error.message }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      leadInfo = data;
+    }
+
+    // Verify user has access to this lead through organization membership
+    const { data: membership, error: membershipError } = await supabaseClient
+      .from('organization_members')
+      .select('role')
+      .eq('organization_id', leadInfo.organization_id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (membershipError || !membership) {
+      return new Response(
+        JSON.stringify({ error: 'User does not have access to this lead' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     // Create text representation for embedding
@@ -72,8 +129,8 @@ serve(async (req) => {
     const embeddingData = await embeddingResponse.json();
     const embedding = embeddingData.data[0].embedding;
 
-    // Update lead with embedding
-    const { error: updateError } = await supabase
+    // Update the lead with the embedding using authenticated client
+    const { error: updateError } = await supabaseClient
       .from('leads')
       .update({ embedding: embedding })
       .eq('id', lead_id);
