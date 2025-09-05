@@ -113,18 +113,39 @@ export const useCheckStaleScores = () => {
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
       
+      // Get leads without scores
       const { data: leadsWithoutScores, error: leadsError } = await supabase
         .from("leads")
-        .select(`
-          id,
-          created_at,
-          lead_scores!left (
-            id,
-            created_at
-          )
-        `)
+        .select("id, created_at")
         .eq("user_id", user.id)
-        .or(`lead_scores.id.is.null,lead_scores.created_at.lt.${sevenDaysAgo.toISOString()}`);
+        .not("id", "in", `(SELECT lead_id FROM lead_scores WHERE created_at > '${sevenDaysAgo.toISOString()}')`);
+      
+      if (leadsError) {
+        // Fallback: get all leads and filter manually
+        const { data: allLeads } = await supabase
+          .from("leads")
+          .select("id, created_at")
+          .eq("user_id", user.id);
+          
+        const { data: recentScores } = await supabase
+          .from("lead_scores")
+          .select("lead_id")
+          .gte("created_at", sevenDaysAgo.toISOString());
+          
+        const recentScoreLeadIds = new Set(recentScores?.map(s => s.lead_id) || []);
+        const staleLeads = allLeads?.filter(lead => !recentScoreLeadIds.has(lead.id)) || [];
+        
+        const { count: totalLeads } = await supabase
+          .from("leads")
+          .select("id", { count: 'exact' })
+          .eq("user_id", user.id);
+          
+        return {
+          stale_count: staleLeads.length,
+          total_leads: totalLeads || 0,
+          stale_leads: staleLeads
+        };
+      }
       
       if (leadsError) throw leadsError;
       

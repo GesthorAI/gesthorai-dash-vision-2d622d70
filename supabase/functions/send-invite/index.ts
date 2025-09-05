@@ -86,19 +86,26 @@ Deno.serve(async (req) => {
 
     const inviterName = profileData?.full_name || user.email || 'Um membro da equipe'
 
-    // Check if user is already a member
-    const { data: existingMember } = await supabase
-      .from('organization_members')
-      .select('id')
-      .eq('organization_id', organizationId)
-      .eq('user_id', user.id)
-      .single()
-
-    if (existingMember) {
-      return new Response('User is already a member of this organization', { 
-        status: 400, 
-        headers: corsHeaders 
-      })
+    // Check if user with this email is already a member
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    const userWithEmail = existingUsers.users.find(u => u.email === email);
+    
+    if (userWithEmail) {
+      const { data: existingMember } = await supabase
+        .from('organization_members')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('user_id', userWithEmail.id)
+        .single();
+        
+      if (existingMember) {
+        return new Response(JSON.stringify({ 
+          error: 'User is already a member of this organization' 
+        }), { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        });
+      }
     }
 
     // Check for existing pending invite

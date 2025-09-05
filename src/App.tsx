@@ -20,6 +20,7 @@ import { Quality } from "./pages/Dashboard/Quality";
 import { Funnel } from "./pages/Dashboard/Funnel";
 import { AISettings } from "./pages/Settings/AISettings";
 import { Onboarding } from "./pages/Dashboard/Onboarding";
+import { InviteAccept } from "./pages/InviteAccept";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
           <BrowserRouter>
             <Routes>
               <Route path="/auth" element={<Auth />} />
+              <Route path="/invite/:token" element={<InviteAccept />} />
               <Route path="/" element={
                 <ProtectedRoute>
                   <Index />

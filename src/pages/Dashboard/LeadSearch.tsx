@@ -15,7 +15,9 @@ import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useRealtimeSearches } from "@/hooks/useRealtimeSearches";
 import { useAuth } from "@/hooks/useAuth";
 import { useLeadScoring } from "@/hooks/useLeadScoring";
-import { useCreateFollowupRun, usePrepareFollowupRun } from "@/hooks/useFollowups";
+import { useCreateFollowupRun, useMessageTemplates } from "@/hooks/useFollowups";
+import { useDispatchToN8n } from "@/hooks/useDispatchToN8n";
+import { useOrganizationContext } from "@/contexts/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -46,8 +48,10 @@ export const LeadSearch = () => {
   const { data: recentSearches = [], isLoading: searchesLoading } = useRecentSearches(20);
   const { data: recentLeads = [], isLoading: leadsLoading } = useLeadsWithRealtime({ dateRange: 1 });
   const createSearch = useCreateSearch();
-  const createFollowupRun = useCreateFollowupRun();
-  const prepareFollowupRun = usePrepareFollowupRun();
+  const { data: messageTemplates = [] } = useMessageTemplates();
+  const createRun = useCreateFollowupRun();
+  const dispatchToN8n = useDispatchToN8n();
+  const { currentOrganizationId } = useOrganizationContext();
   
   // Calculate lead scores for display
   const { scoredLeads } = useLeadScoring(recentLeads);
@@ -157,50 +161,59 @@ export const LeadSearch = () => {
   };
 
   const handleDispatchMessage = async (searchId: string, niche: string, city: string) => {
+    if (!currentOrganizationId) {
+      toast({
+        title: "Erro",
+        description: "Organização não selecionada",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      toast({
-        title: "Preparando disparos...",
-        description: "Criando campanha de primeira abordagem",
-      });
+      // Buscar template "Follow-up Inicial"
+      const initialTemplate = messageTemplates.find(t => t.name === "Follow-up Inicial");
+      if (!initialTemplate) {
+        toast({
+          title: "Template não encontrado",
+          description: "Template 'Follow-up Inicial' não foi encontrado. Crie um template primeiro.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      // Create follow-up run for "Primeira Abordagem"
-      const runData = await createFollowupRun.mutateAsync({
-        name: `Primeira Abordagem - ${niche} em ${city}`,
+      // Criar run com filtros da busca e organization_id
+      const run = await createRun.mutateAsync({
+        name: `Follow-up da busca ${searchId.slice(0, 8)}`,
+        template_id: initialTemplate.id,
+        organization_id: currentOrganizationId,
+        status: "preparing",
         filters: {
-          searchId: searchId,
-          niche: niche,
-          city: city,
-          status: ["novo"] // Only target new leads
-        },
-        template_id: null, // Will use default "Primeira Abordagem" template
-        status: "preparing"
-      });
-
-      // Prepare the run (populate leads)
-      await prepareFollowupRun.mutateAsync({
-        runId: runData.id,
-        filters: {
-          searchId: searchId,
-          niche: niche,
-          city: city,
-          status: ["novo"]
-        },
-        templateId: "", // Will be set during preparation
+          search_id: searchId,
+          status: ["novo", "contatado"]
+        }
       });
 
       toast({
-        title: "Campanha criada!",
-        description: "Redirecionando para configurar os disparos...",
+        title: "Mensagens preparadas",
+        description: "Preparando envio automático...",
       });
 
-      // Navigate to follow-ups page
+      // Auto-dispatch to N8N
+      await dispatchToN8n.mutateAsync({
+        runId: run.id,
+        organizationId: currentOrganizationId
+      });
+
+      // Navigate to followups page
       navigate("/dashboard/followups");
+
     } catch (error) {
-      console.error("Erro ao criar campanha:", error);
+      console.error("Error in dispatch flow:", error);
       toast({
-        title: "Erro ao criar campanha",
-        description: "Não foi possível criar a campanha de disparos.",
-        variant: "destructive"
+        title: "Erro ao disparar mensagens",
+        description: error instanceof Error ? error.message : "Erro desconhecido",
+        variant: "destructive",
       });
     }
   };
@@ -380,7 +393,7 @@ export const LeadSearch = () => {
                           variant="outline"
                           onClick={() => handleDispatchMessage(search.id, search.niche, search.city)}
                           className="gap-2"
-                          disabled={createFollowupRun.isPending || prepareFollowupRun.isPending}
+                          disabled={createRun.isPending || dispatchToN8n.isPending}
                         >
                           <MessageSquare className="h-3 w-3" />
                           Disparar Mensagem
