@@ -14,12 +14,28 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const n8nWebhookUrl = Deno.env.get('N8N_FOLLOWUP_WEBHOOK_URL')!;
-    const webhookToken = Deno.env.get('WEBHOOK_SHARED_TOKEN')!;
+    // Create authenticated Supabase client
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: { Authorization: req.headers.get('Authorization')! },
+        },
+      }
+    );
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    // Verify user authentication
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const n8nWebhookUrl = Deno.env.get('N8N_FOLLOWUP_WEBHOOK_URL')!;
+    const webhookToken = Deno.env.get('WEBHOOK_SHARED_TOKEN')!
 
     const { runId, templateId, filters, personaConfig } = await req.json();
 
@@ -34,12 +50,33 @@ serve(async (req) => {
     console.log('🔗 N8N Webhook URL:', n8nWebhookUrl);
     console.log('🔐 Using webhook token:', webhookToken ? 'Yes' : 'No');
 
-    // Get the followup run details
+    // Get the followup run details and validate organization membership
     const { data: run, error: runError } = await supabase
       .from('followup_runs')
-      .select('*')
+      .select('*, organization_id')
       .eq('id', runId)
       .single();
+
+    if (runError) {
+      console.error('❌ Error fetching run:', runError);
+      throw new Error(`Failed to fetch run: ${runError.message}`);
+    }
+
+    // Validate user belongs to this organization
+    const { data: membershipData } = await supabase
+      .from('organization_members')
+      .select('organization_id')
+      .eq('user_id', user.id)
+      .eq('organization_id', run.organization_id)
+      .single();
+
+    if (!membershipData) {
+      console.error('User not authorized for organization:', run.organization_id);
+      return new Response(
+        JSON.stringify({ error: 'User not authorized for this organization' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (runError) {
       console.error('❌ Error fetching run:', runError);
@@ -67,11 +104,12 @@ serve(async (req) => {
       });
     }
 
-    // Get template details
+    // Get template details - ensure it belongs to the same organization
     const { data: template, error: templateError } = await supabase
       .from('message_templates')
       .select('*')
       .eq('id', templateId)
+      .eq('organization_id', run.organization_id)
       .maybeSingle();
 
     if (templateError) {
@@ -99,11 +137,11 @@ serve(async (req) => {
       variables: template.variables || []
     });
 
-    // Build filter query for leads
+    // Build filter query for leads - filter by organization instead of user
     let query = supabase
       .from('leads')
       .select('id, name, business, phone, city, niche, score, whatsapp_number')
-      .eq('user_id', run.user_id)
+      .eq('organization_id', run.organization_id)
       .is('archived_at', null);
 
     // Apply filters

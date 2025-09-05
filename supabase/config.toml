@@ -7,16 +7,25 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.followup-prepare]
-verify_jwt = false
+verify_jwt = true
 
 [functions.followup-send-whatsapp]
-verify_jwt = false
+verify_jwt = true
 
 [functions.evolution-instance]
 verify_jwt = true
 
 [functions.n8n-followup-dispatch]
-verify_jwt = false
+verify_jwt = true
 
 [functions.webhook-followup-status]
+verify_jwt = false
+
+[functions.semantic-search]
+verify_jwt = true
+
+[functions.embed-lead]
+verify_jwt = true
+
+[functions.ai-auto-reply]
 verify_jwt = false

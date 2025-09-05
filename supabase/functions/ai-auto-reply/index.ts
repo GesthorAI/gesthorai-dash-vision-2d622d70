@@ -8,12 +8,13 @@ const corsHeaders = {
 };
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const openaiKey = Deno.env.get('OPENAI_API_KEY')!;
 const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL')!;
 const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY')!;
+const webhookToken = Deno.env.get('WEBHOOK_SHARED_TOKEN')!;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -25,11 +26,21 @@ serve(async (req) => {
       lead_id, 
       inbound_message, 
       instance_name,
-      phone_number 
+      phone_number,
+      webhook_token
     } = await req.json();
 
     if (!lead_id || !inbound_message) {
       throw new Error('lead_id and inbound_message are required');
+    }
+
+    // Validate webhook token for security
+    if (webhook_token !== webhookToken) {
+      console.error('Invalid webhook token');
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized webhook request' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log(`Processing auto-reply for lead ${lead_id}`);
