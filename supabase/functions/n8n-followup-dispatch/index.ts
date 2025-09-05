@@ -37,7 +37,7 @@ serve(async (req) => {
     const n8nWebhookUrl = Deno.env.get('N8N_FOLLOWUP_WEBHOOK_URL')!;
     const webhookToken = Deno.env.get('WEBHOOK_SHARED_TOKEN')!
 
-    const { runId, templateId, filters, personaConfig } = await req.json();
+    const { runId, organizationId, templateId, filters, personaConfig } = await req.json();
 
     console.log('=== N8N FOLLOWUP DISPATCH STARTED ===');
     console.log('📋 Request payload:', { 
@@ -78,11 +78,6 @@ serve(async (req) => {
       );
     }
 
-    if (runError) {
-      console.error('❌ Error fetching run:', runError);
-      throw new Error(`Failed to fetch run: ${runError.message}`);
-    }
-
     console.log('✅ Retrieved followup run:', { 
       id: run.id, 
       name: run.name, 
@@ -93,8 +88,8 @@ serve(async (req) => {
     });
 
     // Validate required parameters
-    if (!templateId) {
-      console.error('❌ Missing templateId in request');
+    if (!templateId && !run.template_id) {
+      console.error('❌ Missing templateId in request and run');
       return new Response(JSON.stringify({ 
         error: 'Template ID is required for n8n dispatch',
         success: false 
@@ -104,11 +99,14 @@ serve(async (req) => {
       });
     }
 
+    // Use templateId from request or fallback to run's template_id
+    const finalTemplateId = templateId || run.template_id;
+
     // Get template details - ensure it belongs to the same organization
     const { data: template, error: templateError } = await supabase
       .from('message_templates')
       .select('*')
-      .eq('id', templateId)
+      .eq('id', finalTemplateId)
       .eq('organization_id', run.organization_id)
       .maybeSingle();
 
@@ -118,9 +116,9 @@ serve(async (req) => {
     }
 
     if (!template) {
-      console.error('❌ Template not found:', templateId);
+      console.error('❌ Template not found:', finalTemplateId);
       return new Response(JSON.stringify({ 
-        error: `Template with ID ${templateId} not found`,
+        error: `Template with ID ${finalTemplateId} not found`,
         success: false 
       }), {
         status: 400,
@@ -145,25 +143,34 @@ serve(async (req) => {
       .is('archived_at', null);
 
     // Apply filters
-    if (filters.niche) {
-      query = query.ilike('niche', `%${filters.niche}%`);
-    }
-    if (filters.city) {
-      query = query.ilike('city', `%${filters.city}%`);
-    }
-    if (filters.status) {
-      query = query.eq('status', filters.status);
-    }
-    if (filters.minScore) {
-      query = query.gte('score', filters.minScore);
-    }
-    if (filters.maxDaysOld) {
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - filters.maxDaysOld);
-      query = query.gte('created_at', cutoffDate.toISOString());
-    }
-    if (filters.excludeContacted) {
-      query = query.is('last_contacted_at', null);
+    if (filters) {
+      if (filters.search_id) {
+        query = query.eq('search_id', filters.search_id);
+      }
+      if (filters.niche) {
+        query = query.ilike('niche', `%${filters.niche}%`);
+      }
+      if (filters.city) {
+        query = query.ilike('city', `%${filters.city}%`);
+      }
+      if (filters.status) {
+        if (Array.isArray(filters.status)) {
+          query = query.in('status', filters.status);
+        } else {
+          query = query.eq('status', filters.status);
+        }
+      }
+      if (filters.minScore) {
+        query = query.gte('score', filters.minScore);
+      }
+      if (filters.maxDaysOld) {
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - filters.maxDaysOld);
+        query = query.gte('created_at', cutoffDate.toISOString());
+      }
+      if (filters.excludeContacted) {
+        query = query.is('last_contacted_at', null);
+      }
     }
 
     const { data: leads, error: leadsError } = await query;
@@ -227,7 +234,7 @@ serve(async (req) => {
         messageDelay: 3
       },
       leads: leads || [],
-      webhookCallbackUrl: `${supabaseUrl}/functions/v1/webhook-followup-status`,
+      webhookCallbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-followup-status`,
       webhookToken: webhookToken,
       metadata: {
         dispatchedAt: new Date().toISOString(),
