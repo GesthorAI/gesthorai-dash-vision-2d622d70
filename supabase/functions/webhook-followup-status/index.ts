@@ -147,14 +147,18 @@ serve(async (req) => {
               console.error(`Error creating communication for lead ${leadId}:`, commError);
             }
 
-            // Update lead's last_contacted_at
+            // Update lead's last_contacted_at and status to "contatado" if applicable
             const { error: leadUpdateError } = await supabase
               .from('leads')
-              .update({ last_contacted_at: new Date().toISOString() })
-              .eq('id', leadId);
+              .update({ 
+                last_contacted_at: new Date().toISOString(),
+                status: 'contatado'
+              })
+              .eq('id', leadId)
+              .in('status', ['novo', 'contatado']); // Only update if current status allows it
 
             if (leadUpdateError) {
-              console.error(`Error updating lead contact time ${leadId}:`, leadUpdateError);
+              console.error(`Error updating lead contact time and status ${leadId}:`, leadUpdateError);
             }
           }
         }

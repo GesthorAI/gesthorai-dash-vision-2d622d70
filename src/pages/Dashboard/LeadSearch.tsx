@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, CheckCircle, AlertCircle, XCircle, Clock, MessageSquare } from "lucide-react";
+import { Search, CheckCircle, AlertCircle, XCircle, Clock, MessageSquare, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useRecentSearches, useCreateSearch } from "@/hooks/useSearches";
 import { useLeadsWithRealtime } from "@/hooks/useLeads";
@@ -32,6 +32,10 @@ export const LeadSearch = () => {
   const [newNicho, setNewNicho] = useState("");
   const [newCidade, setNewCidade] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  
+  // Filter states for recent searches
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [searchFilter, setSearchFilter] = useState("");
   const { toast } = useToast();
   const { isConnected } = useRealtimeSearches();
   const { session } = useAuth();
@@ -47,6 +51,15 @@ export const LeadSearch = () => {
   
   // Calculate lead scores for display
   const { scoredLeads } = useLeadScoring(recentLeads);
+
+  // Filter recent searches
+  const filteredRecentSearches = recentSearches.filter(search => {
+    const matchesStatus = statusFilter === "all" || search.status === statusFilter;
+    const matchesSearch = !searchFilter || 
+      search.niche?.toLowerCase().includes(searchFilter.toLowerCase()) ||
+      search.city?.toLowerCase().includes(searchFilter.toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
 
   const handleSearch = async () => {
     const nicho = newNicho.trim() || selectedNicho;
@@ -307,9 +320,35 @@ export const LeadSearch = () => {
         {/* Recent Searches */}
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-4">Buscas Recentes</h2>
+          
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Buscar por nicho ou cidade..."
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="concluida">Concluída</SelectItem>
+                <SelectItem value="processando">Processando</SelectItem>
+                <SelectItem value="falhou">Falhou</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {searchesLoading ? (
             <p className="text-muted-foreground">Carregando buscas...</p>
-          ) : recentSearches.length === 0 ? (
+          ) : filteredRecentSearches.length === 0 ? (
             <p className="text-muted-foreground">Nenhuma busca encontrada.</p>
           ) : (
             <Table>
@@ -323,7 +362,7 @@ export const LeadSearch = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentSearches.map((search) => (
+                {filteredRecentSearches.map((search) => (
                   <TableRow key={search.id}>
                     <TableCell className="flex items-center gap-2">
                       {getStatusIcon(search.status)}

@@ -8,14 +8,14 @@ import { LeadsTable } from "@/components/Leads/LeadsTable";
 import { LeadScoreCard } from "@/components/Leads/LeadScoreCard";
 import { QuickActions } from "@/components/Leads/QuickActions";
 import { ScoreDistributionChart } from "@/components/Charts/ScoreDistributionChart";
-import { useLeads } from "@/hooks/useLeads";
+import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useLeadScoring } from "@/hooks/useLeadScoring";
 import { useGenerateAIScores, useCheckStaleScores } from "@/hooks/useAILeadScoring";
 import { Star, TrendingUp, Users, Target, Filter, Search, Brain, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export const Quality = () => {
-  const { data: leads = [], refetch } = useLeads();
+  const { data: leads = [], refetch } = useLeadsWithRealtime();
   const { scoredLeads, scoringStats } = useLeadScoring(leads);
   const [searchTerm, setSearchTerm] = useState("");
   const [scoreFilter, setScoreFilter] = useState("all");
