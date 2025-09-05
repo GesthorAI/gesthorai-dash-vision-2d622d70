@@ -9,7 +9,11 @@ import { ProtectedRoute } from "@/components/Auth/ProtectedRoute";
 import Index from "./pages/Index";
 import { Auth } from "./pages/Auth";
 import NotFound from "./pages/NotFound";
-import Dashboard from "./pages/Dashboard/Overview";
+import { Overview } from "./pages/Dashboard/Overview";
+import { Analytics } from "./pages/Dashboard/Analytics";
+import { LeadSearch } from "./pages/Dashboard/LeadSearch";
+import { Followups } from "./pages/Dashboard/Followups";
+import { Tasks } from "./pages/Dashboard/Tasks";
 import Operations from "./pages/Dashboard/Operations";
 import { Organization } from "./pages/Dashboard/Organization";
 import { Quality } from "./pages/Dashboard/Quality";
@@ -34,8 +38,8 @@ const App = () => (
                   <Index />
                 </ProtectedRoute>
               }>
-                <Route index element={<Dashboard />} />
-                <Route path="dashboard" element={<Dashboard />} />
+                <Route index element={<Overview />} />
+                <Route path="dashboard" element={<Overview />} />
                 <Route path="dashboard/analytics" element={<Analytics />} />
                 <Route path="dashboard/search" element={<LeadSearch />} />
                 <Route path="dashboard/followups" element={<Followups />} />
