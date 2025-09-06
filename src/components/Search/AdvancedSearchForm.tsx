@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
-import { useCreateSearch } from "@/hooks/useSearches";
 import { useSearchOptions } from "@/hooks/useSearchOptions";
+import { useOrganizationContext } from "@/contexts/OrganizationContext";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Search, 
   Settings, 
@@ -61,7 +62,7 @@ export const AdvancedSearchForm = ({ onSearchStart }: AdvancedSearchFormProps) =
   const [isSearching, setIsSearching] = useState(false);
 
   const { toast } = useToast();
-  const createSearch = useCreateSearch();
+  const { currentOrganizationId } = useOrganizationContext();
   const { niches, cities, addNiche, addCity } = useSearchOptions();
 
   const dataSources = [
@@ -111,6 +112,15 @@ export const AdvancedSearchForm = ({ onSearchStart }: AdvancedSearchFormProps) =
       return;
     }
 
+    if (!currentOrganizationId) {
+      toast({
+        title: "Organização necessária",
+        description: "Selecione uma organização para continuar.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     if (filters.sources.length === 0) {
       toast({
         title: "Fontes necessárias",
@@ -131,13 +141,25 @@ export const AdvancedSearchForm = ({ onSearchStart }: AdvancedSearchFormProps) =
     setIsSearching(true);
 
     try {
-      const searchResult = await createSearch.mutateAsync({
-        niche,
-        city,
-        status: "processando",
-        total_leads: 0,
-        webhook_id: `advanced_${Date.now()}`
+      const { data, error } = await supabase.functions.invoke('start-search', {
+        body: { 
+          niche, 
+          city, 
+          organization_id: currentOrganizationId,
+          search_type: 'advanced',
+          filters: filters
+        }
       });
+
+      if (error) {
+        console.error('Start search function error:', error);
+        toast({
+          title: "Erro na busca",
+          description: "Não foi possível iniciar a busca avançada. Tente novamente.",
+          variant: "destructive"
+        });
+        return;
+      }
 
       toast({
         title: "Busca avançada iniciada!",
@@ -161,6 +183,7 @@ export const AdvancedSearchForm = ({ onSearchStart }: AdvancedSearchFormProps) =
       setCustomCity("");
 
     } catch (error) {
+      console.error('Erro ao enviar busca:', error);
       toast({
         title: "Erro na busca",
         description: "Não foi possível iniciar a busca avançada.",
