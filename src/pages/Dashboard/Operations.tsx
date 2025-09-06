@@ -13,13 +13,14 @@ import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useFilters } from "@/hooks/useFilters";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useSelection } from "@/hooks/useSelection";
-import { PlayCircle, Users, Settings, Filter, X, Building2 } from "lucide-react";
+import { PlayCircle, Users, Settings, Filter, X, Building2, Bot } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { WhatsAppConnectDialog } from "@/components/WhatsApp/WhatsAppConnectDialog";
 import { OrganizationSelector } from "@/components/Organization/OrganizationSelector";
 import { OrganizationSettings } from "@/components/Organization/OrganizationSettings";
 import { MembersManagement } from "@/components/Organization/MembersManagement";
-import { AIEnrichPanel } from "@/components/AI/AIEnrichPanel";
+import { AIToolsPanel } from "@/components/AI/AIToolsPanel";
+import { useQueryClient } from "@tanstack/react-query";
 import { Tabs as OrgTabs, TabsContent as OrgTabsContent, TabsList as OrgTabsList, TabsTrigger as OrgTabsTrigger } from "@/components/ui/tabs";
 
 const Operations = () => {
@@ -29,10 +30,12 @@ const Operations = () => {
   const globalFilters = useFilters();
   const { pendingFilters, clearPendingFilters } = useNavigation();
   const { selectedLeads, clearSelection } = useSelection();
+  const queryClient = useQueryClient();
 
   // Get visible tabs based on settings
   const visibleTabs = [
     { id: 'bulk', show: settings.operationsTabsVisibility.showBulk },
+    { id: 'ai-tools', show: true }, // Always show AI tools
     { id: 'automation', show: settings.operationsTabsVisibility.showAutomation },
     { id: 'team', show: settings.operationsTabsVisibility.showTeam },
     { id: 'settings', show: settings.operationsTabsVisibility.showSettings },
@@ -145,6 +148,10 @@ const Operations = () => {
               Ações em Lote
             </TabsTrigger>
           )}
+          <TabsTrigger value="ai-tools" className="gap-2">
+            <Bot className="h-4 w-4" />
+            Ferramentas IA
+          </TabsTrigger>
           {settings.operationsTabsVisibility.showAutomation && (
             <TabsTrigger value="automation" className="gap-2">
               <Settings className="h-4 w-4" />
@@ -215,26 +222,6 @@ const Operations = () => {
             {/* Leads Table */}
             <LeadsTableWithData />
 
-            {/* AI Enrichment */}
-            <AIEnrichPanel 
-              leads={selectedLeads.map((lead: any) => ({
-                id: lead.id,
-                name: lead.name,
-                business: lead.business,
-                phone: lead.phone,
-                email: lead.email,
-                city: lead.city,
-                niche: lead.niche
-              }))}
-              onEnrichmentComplete={(enrichedLeads) => {
-                toast({
-                  title: "Enriquecimento Concluído",
-                  description: `${enrichedLeads.length} leads enriquecidos com IA`,
-                });
-                refetch();
-              }}
-            />
-
             {/* Bulk Actions */}
             <BulkActionsPanel 
               selectedLeads={selectedLeads} 
@@ -242,6 +229,23 @@ const Operations = () => {
             />
           </TabsContent>
         )}
+
+        <TabsContent value="ai-tools" className="space-y-6">
+          <AIToolsPanel
+            leads={leads.map(lead => ({
+              id: lead.id,
+              name: lead.name,
+              business: lead.business,
+              phone: lead.phone,
+              email: lead.email,
+              city: lead.city,
+              niche: lead.niche
+            }))}
+            onDataUpdate={() => {
+              queryClient.invalidateQueries({ queryKey: ['leads'] });
+            }}
+          />
+        </TabsContent>
 
         {settings.operationsTabsVisibility.showAutomation && (
           <TabsContent value="automation">

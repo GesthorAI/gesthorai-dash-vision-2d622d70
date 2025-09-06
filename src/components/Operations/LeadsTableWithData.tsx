@@ -5,9 +5,16 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
+import { BulkActionsPanel } from "@/components/Operations/BulkActionsPanel";
+import { AIDedupePanel } from "@/components/AI/AIDedupePanel";
+import { AIEnrichPanel } from "@/components/AI/AIEnrichPanel";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSelection } from "@/hooks/useSelection";
 
 export const LeadsTableWithData = () => {
   const globalFilters = useFilters();
+  const { selectedLeads, setSelectedLeads } = useSelection();
+  const queryClient = useQueryClient();
   
   // Build final filters for leads query
   const finalFilters = {
@@ -94,8 +101,51 @@ export const LeadsTableWithData = () => {
           </div>
         </Card>
       )}
+
+      {/* Bulk Actions Panel */}
+      <BulkActionsPanel 
+        selectedLeads={selectedLeads}
+        onClearSelection={() => setSelectedLeads([])}
+      />
+
+      {/* AI Tools Panel */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <AIDedupePanel 
+          leads={leads.map(lead => ({
+            id: lead.id,
+            name: lead.name,
+            business: lead.business,
+            phone: lead.phone,
+            email: lead.email,
+            city: lead.city,
+            niche: lead.niche
+          }))}
+          onDuplicatesFound={(duplicates) => {
+            console.log('Duplicates found:', duplicates);
+          }}
+        />
+        
+        <AIEnrichPanel 
+          leads={leads.map(lead => ({
+            id: lead.id,
+            name: lead.name,
+            business: lead.business,
+            phone: lead.phone,
+            email: lead.email,
+            city: lead.city,
+            niche: lead.niche
+          }))}
+          onEnrichmentComplete={(enrichedData) => {
+            console.log('Enrichment completed:', enrichedData);
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
+          }}
+        />
+      </div>
       
-      <LeadsTable leads={leads} onLeadsChange={refetch} />
+      <LeadsTable 
+        leads={leads} 
+        onLeadsChange={refetch}
+      />
     </div>
   );
 };

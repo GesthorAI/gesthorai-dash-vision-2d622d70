@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,208 +23,178 @@ interface DedupeRequest {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
+    const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
 
-    const request: DedupeRequest = await req.json();
-    console.log('AI Dedupe request:', { user_id: request.user_id, leads_count: request.leads.length });
+    const requestBody: DedupeRequest = await req.json();
+    const { user_id, organization_id, leads, similarity_threshold = 0.85 } = requestBody;
 
-    // Validate request
-    if (!request.user_id || !request.organization_id || !request.leads?.length) {
-      throw new Error('Missing required fields: user_id, organization_id, leads');
+    console.log('AI Dedupe request:', { user_id, organization_id, leads_count: leads.length, similarity_threshold });
+
+    // Verify user authentication
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      throw new Error('User not authenticated');
     }
 
-    // Check if AI dedupe is enabled
-    const { data: aiSettings } = await supabase
+    // Check if auto-dedupe feature is enabled
+    const { data: settings } = await supabaseClient
       .from('ai_settings')
       .select('feature_flags')
-      .eq('organization_id', request.organization_id)
+      .eq('organization_id', organization_id)
       .single();
 
-    const featureEnabled = aiSettings?.feature_flags?.auto_dedupe === true;
-    if (!featureEnabled) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'AI deduplication not enabled for this organization',
-          duplicates: []
-        }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!settings?.feature_flags?.auto_dedupe) {
+      throw new Error('Auto-dedupe feature not enabled for this organization');
     }
 
-    const startTime = Date.now();
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    
     if (!openAIApiKey) {
       throw new Error('OpenAI API key not configured');
     }
 
-    const model = aiSettings?.feature_flags?.model || 'gpt-5-mini-2025-08-07';
-    const threshold = request.similarity_threshold || 0.85;
+    const startTime = Date.now();
 
-    // Build system prompt for deduplication
-    const systemPrompt = `Você é um especialista em identificação de leads duplicados com alta precisão.
+    // System prompt for AI deduplication
+    const systemPrompt = `You are an AI assistant specialized in identifying duplicate leads in a CRM system.
 
-MISSÃO: Analisar uma lista de leads e identificar possíveis duplicatas baseado em critérios rigorosos.
+Your mission is to analyze leads and identify potential duplicates based on the following criteria:
+- Similar names (considering variations, abbreviations, and typos)
+- Same business/company name
+- Same phone number (considering formatting differences)
+- Same email address
+- Same city and niche combination
 
-CRITÉRIOS DE DUPLICAÇÃO:
-1. **Nome exato ou muito similar** (considerando abreviações, acentos, maiúsculas/minúsculas)
-2. **Mesmo telefone** (com ou sem formatação, códigos de área)
-3. **Mesmo email** (case-insensitive)
-4. **Mesma empresa + cidade** (nomes similares de negócios na mesma localização)
-5. **Patterns suspeitos** (empresas genéricas como "Loja", "Serviços", etc.)
+For each group of duplicates found, you must:
+1. Choose the most complete lead as the "master"
+2. List all duplicate lead IDs
+3. Calculate a similarity score (0-1)
+4. Specify which criteria matched
+5. Provide a clear rationale
 
-LIMIAR DE SIMILARIDADE: ${threshold}
-
-REGRAS:
-- Seja conservador: prefira não marcar como duplicata se houver dúvida
-- Considere variações ortográficas comuns
-- Telefones: ignore formatação, considere apenas números
-- Empresas: "João Silva ME" = "João Silva Microempresa" = possível duplicata
-- Cidades: "São Paulo" = "SP" = "Sao Paulo"
-
-Responda APENAS com JSON válido:
+Return your response as valid JSON with this structure:
 {
   "duplicate_groups": [
     {
-      "master_id": "id_do_lead_principal",
-      "duplicates": ["id1", "id2"],
+      "master_id": "lead_id",
+      "duplicates": ["lead_id1", "lead_id2"],
       "similarity_score": 0.95,
-      "match_criteria": ["phone", "business_name"],
-      "rationale": "Mesmo telefone e empresa similar"
+      "match_criteria": ["name", "business", "phone"],
+      "rationale": "Explanation of why these are duplicates"
     }
-  ],
-  "total_duplicates_found": 0,
-  "total_groups": 0
-}`;
+  ]
+}
 
-    // Process leads in batches
+Be conservative - only mark leads as duplicates if you're confident they represent the same entity.`;
+
+    // Process leads in batches to avoid token limits
     const batchSize = 50;
-    const allDuplicateGroups: any[] = [];
-    
-    for (let i = 0; i < request.leads.length; i += batchSize) {
-      const batch = request.leads.slice(i, i + batchSize);
+    const allDuplicateGroups = [];
+
+    for (let i = 0; i < leads.length; i += batchSize) {
+      const batch = leads.slice(i, i + batchSize);
       
-      const userPrompt = `Analise os seguintes ${batch.length} leads para identificar possíveis duplicatas:
+      const userPrompt = `Analyze these leads for duplicates with similarity threshold ${similarity_threshold}:
 
-${batch.map((lead, index) => `
-LEAD ${index + 1}:
-- ID: ${lead.id}
-- Nome: ${lead.name}
-- Empresa: ${lead.business}
-- Telefone: ${lead.phone || 'N/A'}
-- Email: ${lead.email || 'N/A'}
-- Cidade: ${lead.city || 'N/A'}
-- Nicho: ${lead.niche || 'N/A'}
-`).join('\n')}
+${batch.map(lead => `ID: ${lead.id}
+Name: ${lead.name}
+Business: ${lead.business}
+Phone: ${lead.phone || 'N/A'}
+Email: ${lead.email || 'N/A'}
+City: ${lead.city || 'N/A'}
+Niche: ${lead.niche || 'N/A'}
+---`).join('\n')}
 
-Identifique grupos de duplicatas dentro deste lote.`;
+Find duplicate groups based on the criteria and return valid JSON.`;
 
-      try {
-        const requestBody: any = {
-          model,
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-5-mini-2025-08-07',
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          response_format: { type: "json_object" }
-        };
+          max_completion_tokens: 4000,
+        }),
+      });
 
-        // Handle model parameter differences
-        const legacyModels = ['gpt-4o', 'gpt-4o-mini'];
-        if (legacyModels.includes(model)) {
-          requestBody.max_tokens = 2000;
-          requestBody.temperature = 0.1;
-        } else {
-          requestBody.max_completion_tokens = 2000;
-        }
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openAIApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error('OpenAI API error:', errorData);
-          continue; // Skip this batch
-        }
-
-        const openAIData = await response.json();
-        const tokensIn = openAIData.usage?.prompt_tokens || 0;
-        const tokensOut = openAIData.usage?.completion_tokens || 0;
-
-        // Parse AI response
-        let aiResult;
-        try {
-          aiResult = JSON.parse(openAIData.choices[0].message.content);
-          if (aiResult.duplicate_groups && Array.isArray(aiResult.duplicate_groups)) {
-            allDuplicateGroups.push(...aiResult.duplicate_groups);
-          }
-        } catch (parseError) {
-          console.error('Error parsing AI response:', parseError);
-        }
-
-        // Log this batch
-        await supabase
-          .from('ai_prompt_logs')
-          .insert({
-            user_id: request.user_id,
-            scope: 'dedupe',
-            model: model,
-            tokens_in: tokensIn,
-            tokens_out: tokensOut,
-            cost_estimate: (tokensIn * 0.000001) + (tokensOut * 0.000003),
-            input_json: { leads_count: batch.length, threshold },
-            output_json: aiResult,
-            execution_time_ms: Date.now() - startTime
-          });
-
-        console.log(`Processed dedupe batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(request.leads.length/batchSize)}`);
-
-      } catch (batchError) {
-        console.error('Error processing dedupe batch:', batchError);
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('OpenAI API error:', errorData);
+        throw new Error(`OpenAI API error: ${response.status}`);
       }
+
+      const data = await response.json();
+      const aiContent = data.choices[0].message.content;
+      
+      try {
+        const aiResponse = JSON.parse(aiContent);
+        if (aiResponse.duplicate_groups) {
+          allDuplicateGroups.push(...aiResponse.duplicate_groups);
+        }
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', aiContent);
+        // Continue with next batch even if one fails
+      }
+
+      // Log the prompt for analytics
+      await supabaseClient
+        .from('ai_prompt_logs')
+        .insert({
+          user_id,
+          organization_id,
+          feature_type: 'dedupe',
+          model: 'gpt-5-mini-2025-08-07',
+          scope: 'batch_dedupe',
+          tokens_in: data.usage?.prompt_tokens || 0,
+          tokens_out: data.usage?.completion_tokens || 0,
+          cost_estimate: ((data.usage?.prompt_tokens || 0) * 0.000001) + ((data.usage?.completion_tokens || 0) * 0.000002),
+          execution_time_ms: Date.now() - startTime,
+          input_json: { batch_size: batch.length, similarity_threshold },
+          output_json: { duplicate_groups_found: aiResponse.duplicate_groups?.length || 0 }
+        });
     }
 
     const executionTime = Date.now() - startTime;
-    const totalDuplicates = allDuplicateGroups.reduce((sum, group) => sum + group.duplicates.length, 0);
-    
-    console.log(`AI deduplication complete: ${allDuplicateGroups.length} groups, ${totalDuplicates} duplicates found in ${executionTime}ms`);
+
+    console.log('AI Dedupe completed:', {
+      duplicate_groups: allDuplicateGroups.length,
+      execution_time: executionTime
+    });
 
     return new Response(JSON.stringify({
       success: true,
       duplicate_groups: allDuplicateGroups,
-      total_duplicates_found: totalDuplicates,
+      total_duplicates_found: allDuplicateGroups.reduce((sum, group) => sum + group.duplicates.length, 0),
       total_groups: allDuplicateGroups.length,
-      similarity_threshold: threshold,
+      similarity_threshold,
       execution_time_ms: executionTime
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error in ai-dedupe:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        duplicate_groups: []
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    console.error('Error in ai-dedupe function:', error);
+    return new Response(JSON.stringify({ 
+      success: false,
+      error: error.message 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });

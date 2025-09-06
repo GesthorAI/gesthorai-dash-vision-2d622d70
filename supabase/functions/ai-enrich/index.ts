@@ -1,6 +1,6 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,235 +23,203 @@ interface EnrichRequest {
 }
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabase = createClient(
+    const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
 
-    const request: EnrichRequest = await req.json();
-    console.log('AI Enrich request:', { user_id: request.user_id, leads_count: request.leads.length });
+    const requestBody: EnrichRequest = await req.json();
+    const { user_id, organization_id, leads, enrichment_fields = ['niche', 'business_size', 'potential_value'] } = requestBody;
 
-    // Validate request
-    if (!request.user_id || !request.organization_id || !request.leads?.length) {
-      throw new Error('Missing required fields: user_id, organization_id, leads');
+    console.log('AI Enrich request:', { user_id, organization_id, leads_count: leads.length, enrichment_fields });
+
+    // Verify user authentication
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    if (authError || !user) {
+      throw new Error('User not authenticated');
     }
 
-    // Check if AI enrichment is enabled
-    const { data: aiSettings } = await supabase
+    // Check if lead enrichment is enabled
+    const { data: settings } = await supabaseClient
       .from('ai_settings')
-      .select('feature_flags')
-      .eq('organization_id', request.organization_id)
+      .select('feature_flags, model_preferences')
+      .eq('organization_id', organization_id)
       .single();
 
-    const featureEnabled = aiSettings?.feature_flags?.lead_enrichment === true;
-    if (!featureEnabled) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'AI lead enrichment not enabled for this organization',
-          enriched_leads: []
-        }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!settings?.feature_flags?.lead_enrichment) {
+      throw new Error('Lead enrichment feature not enabled for this organization');
     }
 
-    const startTime = Date.now();
     const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    
     if (!openAIApiKey) {
       throw new Error('OpenAI API key not configured');
     }
 
-    const model = aiSettings?.feature_flags?.model || 'gpt-5-mini-2025-08-07';
-    const enrichmentFields = request.enrichment_fields || ['niche', 'business_size', 'potential_value', 'contact_preference'];
+    const model = settings.model_preferences?.default_model || 'gpt-5-mini-2025-08-07';
+    const startTime = Date.now();
 
-    // Build system prompt for enrichment
-    const systemPrompt = `Você é um especialista em enriquecimento de dados de leads B2B com conhecimento profundo do mercado brasileiro.
+    // System prompt for AI enrichment
+    const systemPrompt = `You are an AI assistant specialized in enriching lead data for CRM systems.
 
-MISSÃO: Analisar leads incompletos e inferir informações adicionais baseado em patterns, conhecimento de mercado e lógica empresarial.
+Your mission is to analyze lead information and infer additional valuable data points based on the provided context.
 
-CAMPOS PARA ENRIQUECER:
-${enrichmentFields.map(field => `- ${field}`).join('\n')}
+Available enrichment fields:
+- niche: Business vertical/industry category
+- business_size: Estimated company size (micro, pequena, media, grande)
+- potential_value: Estimated potential value (baixo, medio, alto)
+- contact_preference: Preferred contact method (whatsapp, email, phone)
+- urgency: Lead urgency level (baixa, media, alta)
+- ideal_time: Best time to contact (manha, tarde, noite)
 
-DIRETRIZES DE ENRIQUECIMENTO:
-1. **Nicho/Segmento**: Baseado no nome da empresa, inferir o setor (medicina, advocacia, comércio, serviços, etc.)
-2. **Porte da Empresa**: MEI, Micro, Pequena, Média (baseado no nome, cidade, contexto)
-3. **Valor Potencial**: Baixo (R$ 100-500), Médio (R$ 500-2000), Alto (R$ 2000+)
-4. **Preferência de Contato**: WhatsApp, Email, Telefone (baseado no perfil/nicho)
-5. **Urgência**: Baixa, Média, Alta (baseado no tipo de negócio)
-6. **Horário Ideal**: Manhã, Tarde, Noite (baseado no perfil profissional)
+For each lead, provide:
+1. Enriched data for requested fields
+2. Confidence score (0-1) for the enrichment
+3. Clear rationale explaining your analysis
 
-REGRAS:
-- Seja conservador: use "Não determinado" se não houver certeza
-- Baseie-se em conhecimento real do mercado brasileiro
-- Considere o contexto da cidade (capital vs interior)
-- Use categorias padronizadas e consistentes
-- Priorize precision over recall
+Guidelines for enrichment:
+- Use Brazilian Portuguese for categorical values
+- Be conservative with confidence scores
+- Base inferences on business name, location, and existing niche
+- Consider regional business patterns in Brazil
+- Focus on actionable insights for sales teams
 
-Responda APENAS com JSON válido:
+Return valid JSON with this structure:
 {
   "enriched_leads": [
     {
-      "lead_id": "uuid",
+      "lead_id": "id",
       "enriched_data": {
-        "niche": "Medicina - Clínica Geral",
-        "business_size": "Micro",
-        "potential_value": "Alto",
-        "contact_preference": "WhatsApp",
-        "urgency": "Média",
-        "ideal_time": "Manhã",
+        "niche": "value",
+        "business_size": "value",
+        "potential_value": "value",
         "confidence_score": 0.85
       },
-      "rationale": "Explicação da inferência feita"
+      "rationale": "Explanation of the enrichment logic"
     }
   ]
 }`;
 
-    // Process leads in smaller batches for enrichment
-    const batchSize = 10;
-    const allEnrichedLeads: any[] = [];
-    
-    for (let i = 0; i < request.leads.length; i += batchSize) {
-      const batch = request.leads.slice(i, i + batchSize);
+    // Process leads in batches
+    const batchSize = 20; // Smaller batches for more detailed analysis
+    const allEnrichedLeads = [];
+
+    for (let i = 0; i < leads.length; i += batchSize) {
+      const batch = leads.slice(i, i + batchSize);
       
-      const userPrompt = `Enriqueça os seguintes ${batch.length} leads com informações inferidas:
+      const userPrompt = `Enrich these leads with the following fields: ${enrichment_fields.join(', ')}
 
-${batch.map((lead, index) => `
-LEAD ${index + 1}:
-- ID: ${lead.id}
-- Nome: ${lead.name}
-- Empresa: ${lead.business}
-- Telefone: ${lead.phone || 'Não informado'}
-- Email: ${lead.email || 'Não informado'}
-- Cidade: ${lead.city || 'Não informada'}
-- Nicho atual: ${lead.niche || 'Não informado'}
-`).join('\n')}
+${batch.map(lead => `Lead ID: ${lead.id}
+Name: ${lead.name}
+Business: ${lead.business}
+Phone: ${lead.phone || 'N/A'}
+Email: ${lead.email || 'N/A'}
+City: ${lead.city || 'N/A'}
+Current Niche: ${lead.niche || 'N/A'}
+---`).join('\n')}
 
-Para cada lead, infira as informações solicitadas baseado nos dados disponíveis.`;
+Provide enrichment for each lead based on the available information and return valid JSON.`;
 
-      try {
-        const requestBody: any = {
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openAIApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           model,
           messages: [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt }
           ],
-          response_format: { type: "json_object" }
-        };
+          max_completion_tokens: 4000,
+        }),
+      });
 
-        // Handle model parameter differences
-        const legacyModels = ['gpt-4o', 'gpt-4o-mini'];
-        if (legacyModels.includes(model)) {
-          requestBody.max_tokens = 3000;
-          requestBody.temperature = 0.3;
-        } else {
-          requestBody.max_completion_tokens = 3000;
-        }
-
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${openAIApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.text();
-          console.error('OpenAI API error:', errorData);
-          continue; // Skip this batch
-        }
-
-        const openAIData = await response.json();
-        const tokensIn = openAIData.usage?.prompt_tokens || 0;
-        const tokensOut = openAIData.usage?.completion_tokens || 0;
-
-        // Parse AI response
-        let aiResult;
-        try {
-          aiResult = JSON.parse(openAIData.choices[0].message.content);
-          if (aiResult.enriched_leads && Array.isArray(aiResult.enriched_leads)) {
-            allEnrichedLeads.push(...aiResult.enriched_leads);
-          }
-        } catch (parseError) {
-          console.error('Error parsing AI response:', parseError);
-        }
-
-        // Log this batch
-        await supabase
-          .from('ai_prompt_logs')
-          .insert({
-            user_id: request.user_id,
-            scope: 'enrichment',
-            model: model,
-            tokens_in: tokensIn,
-            tokens_out: tokensOut,
-            cost_estimate: (tokensIn * 0.000001) + (tokensOut * 0.000003),
-            input_json: { leads_count: batch.length, fields: enrichmentFields },
-            output_json: aiResult,
-            execution_time_ms: Date.now() - startTime
-          });
-
-        console.log(`Processed enrichment batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(request.leads.length/batchSize)}`);
-
-      } catch (batchError) {
-        console.error('Error processing enrichment batch:', batchError);
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('OpenAI API error:', errorData);
+        throw new Error(`OpenAI API error: ${response.status}`);
       }
+
+      const data = await response.json();
+      const aiContent = data.choices[0].message.content;
+      
+      let aiResponse;
+      try {
+        aiResponse = JSON.parse(aiContent);
+        if (aiResponse.enriched_leads) {
+          allEnrichedLeads.push(...aiResponse.enriched_leads);
+
+          // Update leads in database with enriched data
+          for (const enrichedLead of aiResponse.enriched_leads) {
+            const updateData: any = {};
+            if (enrichedLead.enriched_data.niche) {
+              updateData.niche = enrichedLead.enriched_data.niche;
+            }
+            
+            if (Object.keys(updateData).length > 0) {
+              await supabaseClient
+                .from('leads')
+                .update(updateData)
+                .eq('id', enrichedLead.lead_id);
+            }
+          }
+        }
+      } catch (parseError) {
+        console.error('Failed to parse AI response:', aiContent);
+        // Continue with next batch
+      }
+
+      // Log the prompt for analytics
+      await supabaseClient
+        .from('ai_prompt_logs')
+        .insert({
+          user_id,
+          organization_id,
+          feature_type: 'enrichment',
+          model,
+          scope: 'batch_enrichment',
+          tokens_in: data.usage?.prompt_tokens || 0,
+          tokens_out: data.usage?.completion_tokens || 0,
+          cost_estimate: ((data.usage?.prompt_tokens || 0) * 0.000001) + ((data.usage?.completion_tokens || 0) * 0.000002),
+          execution_time_ms: Date.now() - startTime,
+          input_json: { batch_size: batch.length, enrichment_fields },
+          output_json: { leads_enriched: aiResponse?.enriched_leads?.length || 0 }
+        });
     }
 
-    // Update leads with enriched data
-    const updatePromises = allEnrichedLeads.map(async (enrichedLead) => {
-      try {
-        const { error } = await supabase
-          .from('leads')
-          .update({
-            niche: enrichedLead.enriched_data.niche || undefined,
-            // Store additional enriched data in a metadata JSON field if available
-            // For now, we'll focus on the niche field which exists
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', enrichedLead.lead_id);
-
-        if (error) {
-          console.error('Error updating lead:', error);
-        }
-      } catch (updateError) {
-        console.error('Error in lead update:', updateError);
-      }
-    });
-
-    await Promise.allSettled(updatePromises);
-
     const executionTime = Date.now() - startTime;
-    
-    console.log(`AI enrichment complete: ${allEnrichedLeads.length} leads enriched in ${executionTime}ms`);
+
+    console.log('AI Enrich completed:', {
+      enriched_leads: allEnrichedLeads.length,
+      execution_time: executionTime
+    });
 
     return new Response(JSON.stringify({
       success: true,
       enriched_leads: allEnrichedLeads,
       total_enriched: allEnrichedLeads.length,
-      enrichment_fields: enrichmentFields,
+      enrichment_fields,
       execution_time_ms: executionTime
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error in ai-enrich:', error);
-    return new Response(
-      JSON.stringify({ 
-        error: error.message,
-        enriched_leads: []
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    );
+    console.error('Error in ai-enrich function:', error);
+    return new Response(JSON.stringify({ 
+      success: false,
+      error: error.message 
+    }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
 });
