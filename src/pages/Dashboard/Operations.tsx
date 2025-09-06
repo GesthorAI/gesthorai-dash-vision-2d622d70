@@ -14,15 +14,18 @@ import { useFilters } from "@/hooks/useFilters";
 import { useNavigation } from "@/hooks/useNavigation";
 import { useSelection } from "@/hooks/useSelection";
 import { PlayCircle, Users, Settings, Filter, X, Building2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { WhatsAppConnectDialog } from "@/components/WhatsApp/WhatsAppConnectDialog";
 import { OrganizationSelector } from "@/components/Organization/OrganizationSelector";
 import { OrganizationSettings } from "@/components/Organization/OrganizationSettings";
 import { MembersManagement } from "@/components/Organization/MembersManagement";
+import { AIEnrichPanel } from "@/components/AI/AIEnrichPanel";
 import { Tabs as OrgTabs, TabsContent as OrgTabsContent, TabsList as OrgTabsList, TabsTrigger as OrgTabsTrigger } from "@/components/ui/tabs";
 
 const Operations = () => {
   const [activeTab, setActiveTab] = useState("team");
   const { settings } = useUISettings();
+  const { toast } = useToast();
   const globalFilters = useFilters();
   const { pendingFilters, clearPendingFilters } = useNavigation();
   const { selectedLeads, clearSelection } = useSelection();
@@ -211,6 +214,26 @@ const Operations = () => {
 
             {/* Leads Table */}
             <LeadsTableWithData />
+
+            {/* AI Enrichment */}
+            <AIEnrichPanel 
+              leads={selectedLeads.map((lead: any) => ({
+                id: lead.id,
+                name: lead.name,
+                business: lead.business,
+                phone: lead.phone,
+                email: lead.email,
+                city: lead.city,
+                niche: lead.niche
+              }))}
+              onEnrichmentComplete={(enrichedLeads) => {
+                toast({
+                  title: "Enriquecimento Concluído",
+                  description: `${enrichedLeads.length} leads enriquecidos com IA`,
+                });
+                refetch();
+              }}
+            />
 
             {/* Bulk Actions */}
             <BulkActionsPanel 

@@ -25,6 +25,7 @@ import { AIScoreIndicator } from "@/components/Leads/AIScoreIndicator";
 import { AdvancedSearchForm } from "@/components/Search/AdvancedSearchForm";
 import { LeadCaptureForm } from "@/components/Search/LeadCaptureForm";
 import { ImportExportPanel } from "@/components/Search/ImportExportPanel";
+import { AIDedupePanel } from "@/components/AI/AIDedupePanel";
 import { useSearchOptions } from "@/hooks/useSearchOptions";
 import { useNavigate } from "react-router-dom";
 
@@ -245,11 +246,12 @@ export const LeadSearch = () => {
       </div>
 
       <Tabs defaultValue="simple-search" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="simple-search">Busca Simples</TabsTrigger>
           <TabsTrigger value="advanced-search">Busca Avançada</TabsTrigger>
           <TabsTrigger value="manual-capture">Cadastro Manual</TabsTrigger>
           <TabsTrigger value="import-export">Importar/Exportar</TabsTrigger>
+          <TabsTrigger value="ai-dedupe">IA Deduplicação</TabsTrigger>
         </TabsList>
 
         <TabsContent value="simple-search" className="space-y-6">
@@ -467,6 +469,26 @@ export const LeadSearch = () => {
 
         <TabsContent value="import-export" className="space-y-6">
           <ImportExportPanel />
+        </TabsContent>
+
+        <TabsContent value="ai-dedupe" className="space-y-6">
+          <AIDedupePanel 
+            leads={recentLeads.map(lead => ({
+              id: lead.id,
+              name: lead.name,
+              business: lead.business,
+              phone: lead.phone,
+              email: lead.email,
+              city: lead.city,
+              niche: lead.niche
+            }))}
+            onDuplicatesFound={(duplicateGroups) => {
+              toast({
+                title: "Duplicatas Identificadas",
+                description: `${duplicateGroups.length} grupos de duplicatas encontrados`,
+              });
+            }}
+          />
         </TabsContent>
       </Tabs>
     </div>

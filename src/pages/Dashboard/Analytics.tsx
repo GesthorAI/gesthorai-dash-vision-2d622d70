@@ -4,6 +4,7 @@ import { useNavigation } from "@/hooks/useNavigation";
 import { FilterBar } from "@/components/Filters/FilterBar";
 import { AdvancedFilters } from "@/components/Filters/AdvancedFilters";
 import { AdvancedAnalytics } from "@/components/Analytics/AdvancedAnalytics";
+import { AIAnalyticsPanel } from "@/components/AI/AIAnalyticsPanel";
 import { StatusWorkflow } from "@/components/Workflow/StatusWorkflow";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -89,14 +90,19 @@ export const Analytics = () => {
 
       {/* Main Content Tabs */}
       <Tabs defaultValue="analytics" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="analytics">Analytics Avançado</TabsTrigger>
+          <TabsTrigger value="ai-insights">IA Insights</TabsTrigger>
           <TabsTrigger value="workflow">Workflow & Status</TabsTrigger>
           <TabsTrigger value="filters">Filtros Avançados</TabsTrigger>
         </TabsList>
 
         <TabsContent value="analytics" className="space-y-6">
           <AdvancedAnalytics leads={leads} />
+        </TabsContent>
+
+        <TabsContent value="ai-insights" className="space-y-6">
+          <AIAnalyticsPanel />
         </TabsContent>
 
         <TabsContent value="workflow" className="space-y-6">

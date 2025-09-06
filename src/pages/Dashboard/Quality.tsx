@@ -8,6 +8,7 @@ import { LeadsTable } from "@/components/Leads/LeadsTable";
 import { LeadScoreCard } from "@/components/Leads/LeadScoreCard";
 import { QuickActions } from "@/components/Leads/QuickActions";
 import { ScoreDistributionChart } from "@/components/Charts/ScoreDistributionChart";
+import { AIConversationSummary } from "@/components/AI/AIConversationSummary";
 import { useLeadsWithRealtime } from "@/hooks/useLeads";
 import { useLeadScoring } from "@/hooks/useLeadScoring";
 import { useGenerateAIScores, useCheckStaleScores } from "@/hooks/useAILeadScoring";
@@ -234,7 +235,7 @@ export const Quality = () => {
 
       {/* Selected Lead Details */}
       {selectedLead && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <LeadScoreCard lead={selectedLead} showBreakdown={true} />
           <QuickActions 
             lead={selectedLead} 
@@ -242,6 +243,13 @@ export const Quality = () => {
               refetch();
               setSelectedLead(null);
             }} 
+          />
+          <AIConversationSummary 
+            leadId={selectedLead.id}
+            messages={[]} // This would come from communications table
+            onSummaryGenerated={(summary) => {
+              toast.success(`Resumo gerado: ${summary.lead_sentiment}`);
+            }}
           />
         </div>
       )}
