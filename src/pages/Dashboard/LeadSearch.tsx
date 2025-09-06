@@ -79,6 +79,15 @@ export const LeadSearch = () => {
       return;
     }
 
+    if (!currentOrganizationId) {
+      toast({
+        title: "Organização necessária",
+        description: "Selecione uma organização para continuar.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     // Persist new values if typed
     if (newNicho.trim()) {
       addNiche(newNicho.trim());
@@ -99,7 +108,8 @@ export const LeadSearch = () => {
       const { data, error } = await supabase.functions.invoke('start-search', {
         body: {
           niche: nicho,
-          city: cidade
+          city: cidade,
+          organization_id: currentOrganizationId
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
