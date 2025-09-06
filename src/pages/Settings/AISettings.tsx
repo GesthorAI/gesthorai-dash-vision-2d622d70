@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,7 +31,9 @@ import {
   EyeOff,
   Save,
   AlertTriangle,
-  Target
+  Target,
+  BarChart3,
+  Cog
 } from "lucide-react";
 import { useAISettings } from "@/hooks/useAISettings";
 import { useUpdateAISettings, useAISecretStatus, useAISmoketest } from "@/hooks/useUpdateAISettings";
@@ -39,6 +42,8 @@ import { useUserAPIKeyStatus, useSaveUserAPIKey, useRemoveUserAPIKey } from "@/h
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AIUsageDashboard } from "@/components/AI/AIUsageDashboard";
+import { AdvancedAISettingsPanel } from "@/components/AI/AdvancedAISettingsPanel";
 
 const AVAILABLE_MODELS = [
   { value: "gpt-5-2025-08-07", label: "GPT-5 (Mais Avançado)" },
@@ -223,18 +228,39 @@ export const AISettings = () => {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* API Key Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              Gerenciar Chave API
-            </CardTitle>
-            <CardDescription>
-              Configure sua chave OpenAI pessoal para uso personalizado
-            </CardDescription>
-          </CardHeader>
+      <Tabs defaultValue="general" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="general" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Geral
+          </TabsTrigger>
+          <TabsTrigger value="personas" className="flex items-center gap-2">
+            <Target className="h-4 w-4" />
+            Personas
+          </TabsTrigger>
+          <TabsTrigger value="usage" className="flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Uso & Quotas
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="flex items-center gap-2">
+            <Cog className="h-4 w-4" />
+            Avançado
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general" className="mt-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* API Key Management */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="h-5 w-5" />
+                  Gerenciar Chave API
+                </CardTitle>
+                <CardDescription>
+                  Configure sua chave OpenAI pessoal para uso personalizado
+                </CardDescription>
+              </CardHeader>
           <CardContent className="space-y-4">
             {keyStatusLoading ? (
               <div className="flex justify-center p-4">
@@ -423,8 +449,10 @@ export const AISettings = () => {
           </CardContent>
         </Card>
 
-        {/* Model & Parameters */}
-        <Card>
+            </Card>
+
+            {/* Model & Parameters */}
+            <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
@@ -734,10 +762,27 @@ export const AISettings = () => {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="personas" className="mt-6">
+          {/* Personas content will be added in next phase */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Personas de IA</CardTitle>
+              <CardDescription>Em desenvolvimento...</CardDescription>
+            </CardHeader>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="usage" className="mt-6">
+          <AIUsageDashboard />
+        </TabsContent>
+
+        <TabsContent value="advanced" className="mt-6">
+          <AdvancedAISettingsPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
