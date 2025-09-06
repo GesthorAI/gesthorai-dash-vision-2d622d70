@@ -52,6 +52,90 @@ export type Database = {
           },
         ]
       }
+      ai_embeddings_cache: {
+        Row: {
+          access_count: number | null
+          content_hash: string
+          content_type: string
+          created_at: string
+          embedding: string | null
+          expires_at: string | null
+          id: string
+          metadata: Json | null
+          model: string
+        }
+        Insert: {
+          access_count?: number | null
+          content_hash: string
+          content_type: string
+          created_at?: string
+          embedding?: string | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          model?: string
+        }
+        Update: {
+          access_count?: number | null
+          content_hash?: string
+          content_type?: string
+          created_at?: string
+          embedding?: string | null
+          expires_at?: string | null
+          id?: string
+          metadata?: Json | null
+          model?: string
+        }
+        Relationships: []
+      }
+      ai_performance_metrics: {
+        Row: {
+          cost_estimate: number | null
+          created_at: string
+          error_type: string | null
+          execution_time_ms: number
+          feature: string
+          id: string
+          input_size: number | null
+          model_used: string | null
+          organization_id: string | null
+          output_size: number | null
+          success: boolean
+          tokens_used: number | null
+          user_id: string
+        }
+        Insert: {
+          cost_estimate?: number | null
+          created_at?: string
+          error_type?: string | null
+          execution_time_ms: number
+          feature: string
+          id?: string
+          input_size?: number | null
+          model_used?: string | null
+          organization_id?: string | null
+          output_size?: number | null
+          success?: boolean
+          tokens_used?: number | null
+          user_id: string
+        }
+        Update: {
+          cost_estimate?: number | null
+          created_at?: string
+          error_type?: string | null
+          execution_time_ms?: number
+          feature?: string
+          id?: string
+          input_size?: number | null
+          model_used?: string | null
+          organization_id?: string | null
+          output_size?: number | null
+          success?: boolean
+          tokens_used?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_personas: {
         Row: {
           created_at: string
@@ -107,89 +191,113 @@ export type Database = {
       }
       ai_prompt_logs: {
         Row: {
+          cached: boolean | null
           cost_estimate: number | null
           created_at: string
           error_message: string | null
           execution_time_ms: number | null
+          feature_type: string | null
           id: string
           input_hash: string | null
           input_json: Json | null
           lead_id: string | null
           model: string
+          organization_id: string | null
           output_json: Json | null
           persona_id: string | null
+          retry_count: number | null
           run_id: string | null
           scope: string
           search_id: string | null
           tokens_in: number | null
           tokens_out: number | null
+          user_feedback: number | null
           user_id: string
         }
         Insert: {
+          cached?: boolean | null
           cost_estimate?: number | null
           created_at?: string
           error_message?: string | null
           execution_time_ms?: number | null
+          feature_type?: string | null
           id?: string
           input_hash?: string | null
           input_json?: Json | null
           lead_id?: string | null
           model: string
+          organization_id?: string | null
           output_json?: Json | null
           persona_id?: string | null
+          retry_count?: number | null
           run_id?: string | null
           scope: string
           search_id?: string | null
           tokens_in?: number | null
           tokens_out?: number | null
+          user_feedback?: number | null
           user_id: string
         }
         Update: {
+          cached?: boolean | null
           cost_estimate?: number | null
           created_at?: string
           error_message?: string | null
           execution_time_ms?: number | null
+          feature_type?: string | null
           id?: string
           input_hash?: string | null
           input_json?: Json | null
           lead_id?: string | null
           model?: string
+          organization_id?: string | null
           output_json?: Json | null
           persona_id?: string | null
+          retry_count?: number | null
           run_id?: string | null
           scope?: string
           search_id?: string | null
           tokens_in?: number | null
           tokens_out?: number | null
+          user_feedback?: number | null
           user_id?: string
         }
         Relationships: []
       }
       ai_settings: {
         Row: {
+          cost_controls: Json | null
           created_at: string
           feature_flags: Json
           id: string
           limits: Json
+          model_preferences: Json | null
           organization_id: string | null
+          performance_settings: Json | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          cost_controls?: Json | null
           created_at?: string
           feature_flags?: Json
           id?: string
           limits?: Json
+          model_preferences?: Json | null
           organization_id?: string | null
+          performance_settings?: Json | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          cost_controls?: Json | null
           created_at?: string
           feature_flags?: Json
           id?: string
           limits?: Json
+          model_preferences?: Json | null
           organization_id?: string | null
+          performance_settings?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -202,6 +310,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ai_usage_quotas: {
+        Row: {
+          cost_incurred: number
+          created_at: string
+          id: string
+          organization_id: string | null
+          period_end: string
+          period_start: string
+          requests_limit: number
+          requests_made: number
+          tokens_limit: number
+          tokens_used: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cost_incurred?: number
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          period_end?: string
+          period_start?: string
+          requests_limit?: number
+          requests_made?: number
+          tokens_limit?: number
+          tokens_used?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cost_incurred?: number
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          period_end?: string
+          period_start?: string
+          requests_limit?: number
+          requests_made?: number
+          tokens_limit?: number
+          tokens_used?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       assignment_rules: {
         Row: {
@@ -1172,12 +1325,20 @@ export type Database = {
         Args: { "": string } | { "": unknown }
         Returns: unknown
       }
+      cleanup_expired_embeddings: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_expired_invites: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
       create_organization_with_admin: {
         Args: { org_name: string; org_slug: string }
+        Returns: Json
+      }
+      get_current_ai_usage: {
+        Args: { p_organization_id: string; p_user_id: string }
         Returns: Json
       }
       halfvec_avg: {
@@ -1247,6 +1408,10 @@ export type Database = {
       redact_pii_from_json: {
         Args: { input_json: Json }
         Returns: Json
+      }
+      reset_daily_ai_quotas: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
       }
       sparsevec_out: {
         Args: { "": unknown }
