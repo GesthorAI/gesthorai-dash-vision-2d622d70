@@ -42,17 +42,38 @@ serve(async (req) => {
   try {
     console.log('Webhook received:', req.method);
     
-    // Validate webhook token
+    // Validate webhook token - accept both x-webhook-token and Authorization Bearer
     const webhookToken = req.headers.get('x-webhook-token');
+    const authHeader = req.headers.get('authorization');
     const expectedToken = Deno.env.get('WEBHOOK_SHARED_TOKEN');
     
-    if (!webhookToken || webhookToken !== expectedToken) {
-      console.error('Invalid or missing webhook token');
+    let isValidToken = false;
+    let authMethod = '';
+    
+    // Check x-webhook-token header
+    if (webhookToken && webhookToken === expectedToken) {
+      isValidToken = true;
+      authMethod = 'x-webhook-token';
+    }
+    
+    // Check Authorization Bearer header as fallback
+    if (!isValidToken && authHeader) {
+      const bearerToken = authHeader.replace('Bearer ', '');
+      if (bearerToken === expectedToken) {
+        isValidToken = true;
+        authMethod = 'authorization-bearer';
+      }
+    }
+    
+    if (!isValidToken) {
+      console.error('Invalid or missing webhook token. Checked x-webhook-token and Authorization Bearer headers');
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log(`Valid token received via ${authMethod}`);
     
     // Get environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
