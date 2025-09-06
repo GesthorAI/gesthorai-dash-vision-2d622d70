@@ -35,7 +35,10 @@ serve(async (req) => {
     }
 
     const n8nWebhookUrl = Deno.env.get('N8N_FOLLOWUP_WEBHOOK_URL')!;
-    const webhookToken = Deno.env.get('WEBHOOK_SHARED_TOKEN')!
+    const webhookToken = Deno.env.get('WEBHOOK_SHARED_TOKEN')!;
+    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+    const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
 
     const { runId, organizationId, templateId, filters, personaConfig } = await req.json();
 
@@ -49,6 +52,9 @@ serve(async (req) => {
     });
     console.log('🔗 N8N Webhook URL:', n8nWebhookUrl);
     console.log('🔐 Using webhook token:', webhookToken ? 'Yes' : 'No');
+    console.log('📡 Evolution API URL:', evolutionApiUrl ? 'SET' : 'MISSING');
+    console.log('🏷️ Evolution Instance:', evolutionInstanceName ? 'SET' : 'MISSING');
+    console.log('🔑 Evolution API Key:', evolutionApiKey ? 'SET' : 'MISSING');
 
     // Get the followup run details and validate organization membership
     const { data: run, error: runError } = await supabase
@@ -236,6 +242,9 @@ serve(async (req) => {
       leads: leads || [],
       webhookCallbackUrl: `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-followup-status`,
       webhookToken: webhookToken,
+      URL_EvolutionAPI: evolutionApiUrl,
+      Nome_Instancia_EvolutionAPI: evolutionInstanceName,
+      Api_Key_EvolutionAPI: evolutionApiKey,
       metadata: {
         dispatchedAt: new Date().toISOString(),
         totalLeads: leads?.length || 0,

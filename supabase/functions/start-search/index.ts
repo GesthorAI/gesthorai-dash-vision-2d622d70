@@ -27,12 +27,18 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const n8nWebhookUrl = Deno.env.get('N8N_WEBHOOK_URL');
     const callbackToken = Deno.env.get('WEBHOOK_SHARED_TOKEN');
+    const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
+    const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
+    const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
     
     console.log('Environment check:', {
       supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
       supabaseServiceKey: supabaseServiceKey ? 'SET' : 'MISSING',
       n8nWebhookUrl: n8nWebhookUrl ? 'SET' : 'MISSING',
-      callbackToken: callbackToken ? 'SET' : 'MISSING'
+      callbackToken: callbackToken ? 'SET' : 'MISSING',
+      evolutionApiUrl: evolutionApiUrl ? 'SET' : 'MISSING',
+      evolutionInstanceName: evolutionInstanceName ? 'SET' : 'MISSING',
+      evolutionApiKey: evolutionApiKey ? 'SET' : 'MISSING'
     });
     
     if (!supabaseUrl || !supabaseServiceKey || !n8nWebhookUrl || !callbackToken) {
@@ -143,7 +149,10 @@ serve(async (req) => {
       niche,
       city,
       callback_url: callbackUrl,
-      callback_token: callbackToken
+      callback_token: callbackToken,
+      URL_EvolutionAPI: evolutionApiUrl,
+      Nome_Instancia_EvolutionAPI: evolutionInstanceName,
+      Api_Key_EvolutionAPI: evolutionApiKey
     };
     
     console.log('Sending payload to n8n:', n8nWebhookUrl, JSON.stringify(n8nPayload, null, 2));
