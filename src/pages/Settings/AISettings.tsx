@@ -449,8 +449,6 @@ export const AISettings = () => {
           </CardContent>
         </Card>
 
-            </Card>
-
             {/* Model & Parameters */}
             <Card>
           <CardHeader>
@@ -762,7 +760,10 @@ export const AISettings = () => {
                   </CardContent>
                 </Card>
               ))}
-          </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
         </TabsContent>
 
         <TabsContent value="personas" className="mt-6">
