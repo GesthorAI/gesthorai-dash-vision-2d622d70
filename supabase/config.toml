@@ -35,3 +35,15 @@ verify_jwt = false
 
 [functions.send-invite]
 verify_jwt = true
+
+[functions.ai-dedupe]
+verify_jwt = true
+
+[functions.ai-enrich]
+verify_jwt = true
+
+[functions.ai-conversation-summary]
+verify_jwt = true
+
+[functions.ai-analytics]
+verify_jwt = true

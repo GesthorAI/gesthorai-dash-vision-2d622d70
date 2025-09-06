@@ -10,9 +10,14 @@ export interface AISettingsUpdate {
     auto_dedupe?: boolean;
     semantic_search?: boolean;
     auto_reply?: boolean;
+    lead_enrichment?: boolean;
+    conversation_summary?: boolean;
+    analytics_insights?: boolean;
     model?: string;
     temperature?: number;
     max_tokens?: number;
+    fallback_model?: string;
+    retry_attempts?: number;
   };
   limits?: {
     daily_tokens?: number;

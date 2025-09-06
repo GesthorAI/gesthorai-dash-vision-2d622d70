@@ -13,9 +13,14 @@ export interface AISettings {
     auto_dedupe?: boolean;
     semantic_search?: boolean;
     auto_reply?: boolean;
+    lead_enrichment?: boolean;
+    conversation_summary?: boolean;
+    analytics_insights?: boolean;
     model?: string;
     temperature?: number;
     max_tokens?: number;
+    fallback_model?: string;
+    retry_attempts?: number;
   };
   limits: {
     daily_tokens?: number;
@@ -51,8 +56,13 @@ export const useAISettings = () => {
               auto_dedupe: false,
               semantic_search: false,
               auto_reply: false,
+              lead_enrichment: false,
+              conversation_summary: false,
+              analytics_insights: false,
               model: 'gpt-5-mini-2025-08-07',
-              max_tokens: 220
+              max_tokens: 220,
+              fallback_model: 'gpt-4o-mini',
+              retry_attempts: 3
             },
             limits: {
               daily_tokens: 50000,
