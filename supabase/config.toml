@@ -6,6 +6,9 @@ verify_jwt = false
 [functions.start-search]
 verify_jwt = true
 
+[functions.start-search-health]
+verify_jwt = false
+
 [functions.followup-prepare]
 verify_jwt = true
 

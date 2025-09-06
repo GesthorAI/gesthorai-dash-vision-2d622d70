@@ -41,10 +41,21 @@ serve(async (req) => {
       evolutionApiKey: evolutionApiKey ? 'SET' : 'MISSING'
     });
     
-    if (!supabaseUrl || !supabaseServiceKey || !n8nWebhookUrl || !callbackToken) {
-      console.error('Missing required environment variables');
+    // Check for missing critical variables
+    const missingVars = [];
+    if (!supabaseUrl) missingVars.push('SUPABASE_URL');
+    if (!supabaseServiceKey) missingVars.push('SUPABASE_SERVICE_ROLE_KEY');
+    if (!n8nWebhookUrl) missingVars.push('N8N_WEBHOOK_URL');
+    if (!callbackToken) missingVars.push('WEBHOOK_SHARED_TOKEN');
+    
+    if (missingVars.length > 0) {
+      console.error('Missing required environment variables:', missingVars);
       return new Response(
-        JSON.stringify({ error: 'Server configuration error - missing environment variables' }),
+        JSON.stringify({ 
+          error: 'Server configuration error - missing environment variables',
+          missing: missingVars,
+          details: `Missing critical environment variables: ${missingVars.join(', ')}`
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
