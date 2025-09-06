@@ -168,12 +168,13 @@ serve(async (req) => {
     
     console.log('Sending payload to n8n:', n8nWebhookUrl, JSON.stringify(n8nPayload, null, 2));
     
-    // Call n8n webhook
+    // Call n8n webhook with multiple authentication methods
     const n8nResponse = await fetch(n8nWebhookUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-webhook-token': callbackToken
+        'x-webhook-token': callbackToken,
+        'Authorization': `Bearer ${callbackToken}`
       },
       body: JSON.stringify(n8nPayload)
     });
@@ -201,7 +202,10 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           error: 'Failed to queue search job', 
-          details: `n8n responded with ${n8nResponse.status}: ${responseText}` 
+          details: `n8n responded with ${n8nResponse.status}: ${responseText}`,
+          n8nUrl: n8nWebhookUrl,
+          searchId: currentSearchId,
+          troubleshooting: 'Check n8n webhook configuration and authentication'
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

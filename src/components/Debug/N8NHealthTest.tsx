@@ -5,7 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useOrganizationContext } from '@/contexts/OrganizationContext';
-import { CheckCircle, XCircle, AlertCircle, Play } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Play, Eye } from 'lucide-react';
+import { SearchTestResultsDialog } from './SearchTestResultsDialog';
 
 interface HealthStatus {
   timestamp: string;
@@ -27,6 +28,8 @@ export const N8NHealthTest = () => {
   const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [testingSearch, setTestingSearch] = useState(false);
+  const [searchTestResults, setSearchTestResults] = useState<any>(null);
+  const [showResults, setShowResults] = useState(false);
   const { toast } = useToast();
   const { currentOrganizationId } = useOrganizationContext();
 
@@ -78,9 +81,11 @@ export const N8NHealthTest = () => {
       });
       
       if (error) {
+        setSearchTestResults({ ...error, success: false });
         throw error;
       }
       
+      setSearchTestResults({ ...data, success: true });
       toast({
         title: "Search Test Successful",
         description: `Search ID: ${data.search_id}`,
@@ -89,9 +94,18 @@ export const N8NHealthTest = () => {
       console.log('Search test result:', data);
     } catch (error) {
       console.error('Search test failed:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Capture error details for display
+      let errorDetails = { success: false, error: errorMessage };
+      if (error && typeof error === 'object') {
+        errorDetails = { ...errorDetails, ...error };
+      }
+      setSearchTestResults(errorDetails);
+      
       toast({
-        title: "Search Test Failed",
-        description: error instanceof Error ? error.message : 'Unknown error',
+        title: "Search Test Failed", 
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -152,6 +166,17 @@ export const N8NHealthTest = () => {
               <Play className="h-4 w-4 mr-2" />
               {testingSearch ? 'Testing...' : 'Test Search'}
             </Button>
+
+            {searchTestResults && (
+              <Button 
+                onClick={() => setShowResults(true)}
+                variant="outline"
+                size="sm"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                View Results
+              </Button>
+            )}
           </div>
 
           {healthStatus && (
@@ -223,6 +248,12 @@ export const N8NHealthTest = () => {
           )}
         </CardContent>
       </Card>
+
+      <SearchTestResultsDialog 
+        testResults={searchTestResults}
+        open={showResults}
+        onOpenChange={setShowResults}
+      />
     </div>
   );
 };

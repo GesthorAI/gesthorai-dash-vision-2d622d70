@@ -57,7 +57,8 @@ serve(async (req) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-webhook-token': callbackToken
+            'x-webhook-token': callbackToken,
+            'Authorization': `Bearer ${callbackToken}`
           },
           body: JSON.stringify(testPayload)
         });
