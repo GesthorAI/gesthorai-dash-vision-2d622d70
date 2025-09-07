@@ -26,7 +26,19 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const n8nWebhookUrl = Deno.env.get('N8N_WEBHOOK_URL');
-    const callbackToken = Deno.env.get('WEBHOOK_SHARED_TOKEN');
+    // Try WEBHOOK_SHARED_TOKEN first, then fallback to callbackToken
+    let callbackToken = Deno.env.get('WEBHOOK_SHARED_TOKEN') || Deno.env.get('callbackToken');
+    let tokenSource = 'MISSING';
+    
+    if (Deno.env.get('WEBHOOK_SHARED_TOKEN')) {
+      tokenSource = 'WEBHOOK_SHARED_TOKEN';
+      console.log('Using WEBHOOK_SHARED_TOKEN for authentication');
+    } else if (Deno.env.get('callbackToken')) {
+      tokenSource = 'callbackToken (fallback)';
+      console.log('Using callbackToken as fallback for authentication');
+    } else {
+      console.log('No webhook token found in either WEBHOOK_SHARED_TOKEN or callbackToken');
+    }
     const evolutionApiUrl = Deno.env.get('EVOLUTION_API_URL');
     const evolutionInstanceName = Deno.env.get('EVOLUTION_INSTANCE_NAME');
     const evolutionApiKey = Deno.env.get('EVOLUTION_API_KEY');
@@ -35,7 +47,7 @@ serve(async (req) => {
       supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
       supabaseServiceKey: supabaseServiceKey ? 'SET' : 'MISSING',
       n8nWebhookUrl: n8nWebhookUrl ? 'SET' : 'MISSING',
-      callbackToken: callbackToken ? 'SET' : 'MISSING',
+      callbackToken: callbackToken ? `SET (${tokenSource})` : 'MISSING',
       evolutionApiUrl: evolutionApiUrl ? 'SET' : 'MISSING',
       evolutionInstanceName: evolutionInstanceName ? 'SET' : 'MISSING',
       evolutionApiKey: evolutionApiKey ? 'SET' : 'MISSING'

@@ -45,7 +45,19 @@ serve(async (req) => {
     // Validate webhook token - accept both x-webhook-token and Authorization Bearer
     const webhookToken = req.headers.get('x-webhook-token');
     const authHeader = req.headers.get('authorization');
-    const expectedToken = Deno.env.get('WEBHOOK_SHARED_TOKEN');
+    // Try WEBHOOK_SHARED_TOKEN first, then fallback to callbackToken
+    let expectedToken = Deno.env.get('WEBHOOK_SHARED_TOKEN') || Deno.env.get('callbackToken');
+    let tokenSource = 'MISSING';
+    
+    if (Deno.env.get('WEBHOOK_SHARED_TOKEN')) {
+      tokenSource = 'WEBHOOK_SHARED_TOKEN';
+      console.log('Using WEBHOOK_SHARED_TOKEN for webhook validation');
+    } else if (Deno.env.get('callbackToken')) {
+      tokenSource = 'callbackToken (fallback)';
+      console.log('Using callbackToken as fallback for webhook validation');
+    } else {
+      console.log('No webhook token found in either WEBHOOK_SHARED_TOKEN or callbackToken');
+    }
     
     let isValidToken = false;
     let authMethod = '';
@@ -82,7 +94,7 @@ serve(async (req) => {
     console.log('Environment check:', {
       supabaseUrl: supabaseUrl ? 'SET' : 'MISSING',
       supabaseServiceKey: supabaseServiceKey ? 'SET' : 'MISSING',
-      expectedToken: expectedToken ? 'SET' : 'MISSING'
+      expectedToken: expectedToken ? `SET (${tokenSource})` : 'MISSING'
     });
     
     if (!supabaseUrl || !supabaseServiceKey) {
