@@ -113,10 +113,10 @@ serve(async (req) => {
       );
     }
     
-    // Verify search exists and get user_id
+    // Verify search exists and get user_id and organization_id
     const { data: searchData, error: searchError } = await supabase
       .from('searches')
-      .select('id, niche, city, user_id')
+      .select('id, niche, city, user_id, organization_id')
       .eq('id', search_id)
       .single();
       
@@ -129,6 +129,29 @@ serve(async (req) => {
     }
     
     console.log('Search found:', searchData);
+    
+    // If search doesn't have organization_id (old records), get it from user's first organization
+    let organizationId = searchData.organization_id;
+    if (!organizationId) {
+      console.log('Search missing organization_id, fetching user\'s organization');
+      const { data: orgData, error: orgError } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', searchData.user_id)
+        .limit(1)
+        .single();
+        
+      if (orgError || !orgData) {
+        console.error('Failed to get user organization:', orgError);
+        return new Response(
+          JSON.stringify({ error: 'No organization found for user' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      organizationId = orgData.organization_id;
+      console.log('Using fallback organization_id:', organizationId);
+    }
     
     // Update search status initially (will update total_leads after processing leads)
     const initialUpdateData: any = { status };
@@ -207,6 +230,7 @@ serve(async (req) => {
             // Metadata
             search_id: search_id,
             user_id: searchData.user_id,
+            organization_id: organizationId,
           };
         });
         
