@@ -1341,6 +1341,18 @@ export type Database = {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: Json
       }
+      get_invite_by_token: {
+        Args: { invite_token: string }
+        Returns: {
+          email: string
+          expires_at: string
+          id: string
+          invited_at: string
+          organization_id: string
+          organization_name: string
+          role: string
+        }[]
+      }
       halfvec_avg: {
         Args: { "": number[] }
         Returns: unknown

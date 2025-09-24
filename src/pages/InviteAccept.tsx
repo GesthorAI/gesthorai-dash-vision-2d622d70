@@ -8,18 +8,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle, Users, Building2 } from 'lucide-react';
 
 interface InviteData {
+  id: string;
   organization_id: string;
   email: string;
   role: string;
-  invited_by: string;
+  invited_at: string;
   expires_at: string;
-  accepted_at: string | null;
-  organizations: {
-    name: string;
-  };
-  profiles?: {
-    full_name: string;
-  } | null;
+  organization_name: string;
 }
 
 export const InviteAccept = () => {
@@ -45,19 +40,10 @@ export const InviteAccept = () => {
 
   const fetchInvite = async () => {
     try {
-      const { data, error } = await supabase
-        .from('organization_invites')
-        .select(`
-          organization_id,
-          email,
-          role,
-          invited_by,
-          expires_at,
-          accepted_at,
-          organizations!inner (name)
-        `)
-        .eq('token', token)
-        .single();
+      // Use the secure function to get invite by token
+      const { data, error } = await supabase.rpc('get_invite_by_token', {
+        invite_token: token
+      });
 
       if (error) {
         console.error('Error fetching invite:', error);
@@ -65,24 +51,12 @@ export const InviteAccept = () => {
         return;
       }
 
-      if (data.accepted_at) {
-        setError('Este convite já foi aceito');
+      if (!data || data.length === 0) {
+        setError('Convite não encontrado, já aceito ou expirado');
         return;
       }
 
-      if (new Date(data.expires_at) < new Date()) {
-        setError('Este convite expirou');
-        return;
-      }
-
-      // Get inviter profile separately to avoid type issues
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', data.invited_by)
-        .single();
-
-      setInvite({ ...data, profiles: profileData });
+      setInvite(data[0]);
     } catch (err) {
       console.error('Error:', err);
       setError('Erro ao carregar convite');
@@ -196,13 +170,10 @@ export const InviteAccept = () => {
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-gray-600" />
-                  <span className="font-medium">{invite.organizations.name}</span>
+                  <span className="font-medium">{invite.organization_name}</span>
                 </div>
                 <div className="text-sm text-gray-600">
                   Função: {invite.role === 'admin' ? 'Administrador' : 'Membro'}
-                </div>
-                <div className="text-sm text-gray-600">
-                  Convidado por: {invite.profiles?.full_name || 'Um membro da equipe'}
                 </div>
               </div>
               
@@ -263,13 +234,10 @@ export const InviteAccept = () => {
           <div className="bg-gray-50 p-4 rounded-lg space-y-2">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-gray-600" />
-              <span className="font-medium">{invite.organizations.name}</span>
+              <span className="font-medium">{invite.organization_name}</span>
             </div>
             <div className="text-sm text-gray-600">
               Função: {invite.role === 'admin' ? 'Administrador' : 'Membro'}
-            </div>
-            <div className="text-sm text-gray-600">
-              Convidado por: {invite.profiles?.full_name || 'Um membro da equipe'}
             </div>
             <div className="text-sm text-gray-600">
               Email: {invite.email}
