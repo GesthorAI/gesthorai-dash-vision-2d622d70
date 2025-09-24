@@ -9,11 +9,13 @@ import { AlertCircle, Eye, EyeOff, Shield, Users, TrendingUp } from 'lucide-reac
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { ForgotPasswordModal } from '@/components/Auth/ForgotPasswordModal';
 
 export const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { signIn, signUp } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -208,6 +210,17 @@ export const Auth = () => {
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "Entrando..." : "Entrar"}
                   </Button>
+                  
+                  <div className="text-center">
+                    <Button
+                      type="button"
+                      variant="link"
+                      onClick={() => setShowForgotPassword(true)}
+                      className="text-sm text-muted-foreground hover:text-primary"
+                    >
+                      Esqueceu sua senha?
+                    </Button>
+                  </div>
                 </form>
               </TabsContent>
 
@@ -272,6 +285,11 @@ export const Auth = () => {
             </Tabs>
           </CardContent>
         </Card>
+        
+        <ForgotPasswordModal
+          isOpen={showForgotPassword}
+          onClose={() => setShowForgotPassword(false)}
+        />
       </div>
     </div>
   );
