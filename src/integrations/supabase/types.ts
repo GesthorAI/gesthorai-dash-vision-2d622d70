@@ -1325,6 +1325,22 @@ export type Database = {
         Args: { "": string } | { "": unknown }
         Returns: unknown
       }
+      can_access_communications: {
+        Args: { comm_organization_id: string }
+        Returns: boolean
+      }
+      check_ai_quota_available: {
+        Args: {
+          p_organization_id: string
+          p_tokens_required?: number
+          p_user_id: string
+        }
+        Returns: boolean
+      }
+      check_login_attempts: {
+        Args: { ip_address: string }
+        Returns: boolean
+      }
       check_rate_limit: {
         Args: {
           max_requests?: number
@@ -1426,8 +1442,22 @@ export type Database = {
         Args: { "": string } | { "": unknown } | { "": unknown }
         Returns: string
       }
+      mask_sensitive_data: {
+        Args: { data: Json }
+        Returns: Json
+      }
       migrate_existing_data_to_orgs: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      record_ai_usage: {
+        Args: {
+          p_cost_estimate?: number
+          p_feature_type?: string
+          p_organization_id: string
+          p_tokens_used: number
+          p_user_id: string
+        }
         Returns: undefined
       }
       redact_pii_from_json: {
@@ -1452,6 +1482,10 @@ export type Database = {
       }
       validate_organization_access: {
         Args: { org_id: string; user_id?: string }
+        Returns: boolean
+      }
+      validate_password_strength: {
+        Args: { password: string }
         Returns: boolean
       }
       vector_avg: {
