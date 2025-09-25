@@ -22,6 +22,7 @@ import { Funnel } from "./pages/Dashboard/Funnel";
 import { AISettings } from "./pages/Settings/AISettings";
 import { Onboarding } from "./pages/Dashboard/Onboarding";
 import { InviteAccept } from "./pages/InviteAccept";
+import Security from "./pages/Dashboard/Security";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,7 @@ const App = () => (
                 <Route path="dashboard/quality" element={<Quality />} />
                 <Route path="dashboard/funnel" element={<Funnel />} />
                 <Route path="dashboard/settings/ai" element={<AISettings />} />
+                <Route path="dashboard/security" element={<Security />} />
                 <Route path="dashboard/onboarding" element={<Onboarding />} />
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

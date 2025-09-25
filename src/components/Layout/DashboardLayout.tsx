@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
-import { Menu, LogOut, Settings, Eye, BarChart3, Search, CheckSquare, MessageSquare, Filter, Award, Cog, Brain, Monitor, X, Building2 } from "lucide-react";
+import { Menu, LogOut, Settings, Eye, BarChart3, Search, CheckSquare, MessageSquare, Filter, Award, Cog, Brain, Monitor, X, Building2, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUISettings } from "@/hooks/useUISettings";
 import { RealtimeNotifications } from "@/components/Notifications/RealtimeNotifications";
@@ -30,6 +30,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
     { id: "analytics", label: "Analytics", icon: BarChart3 },
     { id: "operations", label: "Operacional", icon: Settings },
     { id: "organization", label: "Organização", icon: Building2 },
+    { id: "security", label: "Segurança", icon: Shield },
     { id: "ai-settings", label: "Configurações IA", icon: Cog },
   ];
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -70,6 +71,7 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
       'tasks': 'showTasks',
       'followups': 'showFollowups',
       'organization': 'showOrganization',
+      'security': 'showSecurity',
       'ai-settings': 'showAISettings',
     };
     const key = pageVisibilityMap[item.id];
@@ -406,6 +408,18 @@ export const DashboardLayout = ({ children, currentPage, onPageChange }: Dashboa
                     onCheckedChange={(checked) => 
                       updateSettings({ 
                         pagesVisibility: { ...settings.pagesVisibility, showAnalytics: checked } 
+                      })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="show-security">Segurança</Label>
+                  <Switch
+                    id="show-security"
+                    checked={settings.pagesVisibility.showSecurity}
+                    onCheckedChange={(checked) => 
+                      updateSettings({ 
+                        pagesVisibility: { ...settings.pagesVisibility, showSecurity: checked } 
                       })
                     }
                   />
