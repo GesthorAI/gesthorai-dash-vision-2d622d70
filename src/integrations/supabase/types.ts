@@ -1325,6 +1325,19 @@ export type Database = {
         Args: { "": string } | { "": unknown }
         Returns: unknown
       }
+      check_rate_limit: {
+        Args: {
+          max_requests?: number
+          operation_type: string
+          user_id_param: string
+          window_minutes?: number
+        }
+        Returns: boolean
+      }
+      cleanup_expired_data: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       cleanup_expired_embeddings: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1436,6 +1449,10 @@ export type Database = {
       sparsevec_typmod_in: {
         Args: { "": unknown[] }
         Returns: number
+      }
+      validate_organization_access: {
+        Args: { org_id: string; user_id?: string }
+        Returns: boolean
       }
       vector_avg: {
         Args: { "": number[] }
