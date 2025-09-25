@@ -1321,10 +1321,6 @@ export type Database = {
         Args: { invite_token: string }
         Returns: Json
       }
-      binary_quantize: {
-        Args: { "": string } | { "": unknown }
-        Returns: unknown
-      }
       can_access_communications: {
         Args: { comm_organization_id: string }
         Returns: boolean
@@ -1354,6 +1350,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_expired_data_enhanced: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       cleanup_expired_embeddings: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1382,38 +1382,6 @@ export type Database = {
           role: string
         }[]
       }
-      halfvec_avg: {
-        Args: { "": number[] }
-        Returns: unknown
-      }
-      halfvec_out: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      halfvec_send: {
-        Args: { "": unknown }
-        Returns: string
-      }
-      halfvec_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
-      }
-      hnsw_bit_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnsw_halfvec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnsw_sparsevec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      hnswhandler: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
       is_org_admin: {
         Args: { org_id: string; user_id?: string }
         Returns: boolean
@@ -1422,25 +1390,9 @@ export type Database = {
         Args: { org_id: string; user_id?: string }
         Returns: boolean
       }
-      ivfflat_bit_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      ivfflat_halfvec_support: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      ivfflathandler: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      l2_norm: {
-        Args: { "": unknown } | { "": unknown }
-        Returns: number
-      }
-      l2_normalize: {
-        Args: { "": string } | { "": unknown } | { "": unknown }
-        Returns: string
+      log_suspicious_access: {
+        Args: { access_type: string; metadata?: Json; resource_id?: string }
+        Returns: undefined
       }
       mask_sensitive_data: {
         Args: { data: Json }
@@ -1468,17 +1420,9 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
-      sparsevec_out: {
-        Args: { "": unknown }
-        Returns: unknown
-      }
-      sparsevec_send: {
-        Args: { "": unknown }
+      sanitize_input: {
+        Args: { input_text: string }
         Returns: string
-      }
-      sparsevec_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
       }
       validate_organization_access: {
         Args: { org_id: string; user_id?: string }
@@ -1488,29 +1432,14 @@ export type Database = {
         Args: { password: string }
         Returns: boolean
       }
-      vector_avg: {
-        Args: { "": number[] }
-        Returns: string
-      }
-      vector_dims: {
-        Args: { "": string } | { "": unknown }
-        Returns: number
-      }
-      vector_norm: {
-        Args: { "": string }
-        Returns: number
-      }
-      vector_out: {
-        Args: { "": string }
-        Returns: unknown
-      }
-      vector_send: {
-        Args: { "": string }
-        Returns: string
-      }
-      vector_typmod_in: {
-        Args: { "": unknown[] }
-        Returns: number
+      verify_data_integrity: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          description: string
+          issue_count: number
+          issue_type: string
+          table_name: string
+        }[]
       }
     }
     Enums: {
