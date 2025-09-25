@@ -946,27 +946,36 @@ export type Database = {
       }
       organization_members: {
         Row: {
+          custom_permissions: Json | null
           id: string
           invited_by: string | null
           joined_at: string
+          last_activity: string | null
           organization_id: string
           role: string
+          role_id: string | null
           user_id: string
         }
         Insert: {
+          custom_permissions?: Json | null
           id?: string
           invited_by?: string | null
           joined_at?: string
+          last_activity?: string | null
           organization_id: string
           role?: string
+          role_id?: string | null
           user_id: string
         }
         Update: {
+          custom_permissions?: Json | null
           id?: string
           invited_by?: string | null
           joined_at?: string
+          last_activity?: string | null
           organization_id?: string
           role?: string
+          role_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -1015,6 +1024,36 @@ export type Database = {
         }
         Relationships: []
       }
+      permissions: {
+        Row: {
+          action: string
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+          resource_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          resource_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          resource_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -1036,6 +1075,39 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      roles: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          is_system_role: boolean | null
+          name: string
+          organization_id: string
+          permissions: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_system_role?: boolean | null
+          name: string
+          organization_id: string
+          permissions?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          is_system_role?: boolean | null
+          name?: string
+          organization_id?: string
+          permissions?: Json | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1092,6 +1164,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      security_alerts: {
+        Row: {
+          alert_type: string
+          auto_resolved: boolean | null
+          created_at: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          organization_id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          severity: string
+          status: string
+          title: string
+        }
+        Insert: {
+          alert_type: string
+          auto_resolved?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          organization_id: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string
+          title: string
+        }
+        Update: {
+          alert_type?: string
+          auto_resolved?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          organization_id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          severity?: string
+          status?: string
+          title?: string
+        }
+        Relationships: []
       }
       tasks: {
         Row: {
@@ -1205,6 +1322,51 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_sessions: {
+        Row: {
+          device_info: Json | null
+          id: string
+          ip_address: unknown | null
+          is_active: boolean | null
+          last_activity: string | null
+          location_info: Json | null
+          login_at: string | null
+          logout_at: string | null
+          organization_id: string | null
+          session_token_hash: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          device_info?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          location_info?: Json | null
+          login_at?: string | null
+          logout_at?: string | null
+          organization_id?: string | null
+          session_token_hash: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          device_info?: Json | null
+          id?: string
+          ip_address?: unknown | null
+          is_active?: boolean | null
+          last_activity?: string | null
+          location_info?: Json | null
+          login_at?: string | null
+          logout_at?: string | null
+          organization_id?: string | null
+          session_token_hash?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       whatsapp_instances: {
         Row: {
@@ -1346,6 +1508,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      check_user_permission: {
+        Args: {
+          p_organization_id: string
+          p_permission_name: string
+          p_user_id: string
+        }
+        Returns: boolean
+      }
       cleanup_expired_data: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -1366,6 +1536,17 @@ export type Database = {
         Args: { org_name: string; org_slug: string }
         Returns: Json
       }
+      create_security_alert: {
+        Args: {
+          p_alert_type: string
+          p_description?: string
+          p_metadata?: Json
+          p_organization_id: string
+          p_severity: string
+          p_title: string
+        }
+        Returns: string
+      }
       get_current_ai_usage: {
         Args: { p_organization_id: string; p_user_id: string }
         Returns: Json
@@ -1381,6 +1562,10 @@ export type Database = {
           organization_name: string
           role: string
         }[]
+      }
+      get_organization_security_report: {
+        Args: { p_organization_id: string }
+        Returns: Json
       }
       is_org_admin: {
         Args: { org_id: string; user_id?: string }
@@ -1402,6 +1587,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      monitor_organization_ai_usage: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       record_ai_usage: {
         Args: {
           p_cost_estimate?: number
@@ -1415,6 +1604,15 @@ export type Database = {
       redact_pii_from_json: {
         Args: { input_json: Json }
         Returns: Json
+      }
+      register_user_session: {
+        Args: {
+          p_ip_address?: string
+          p_organization_id?: string
+          p_user_agent?: string
+          p_user_id: string
+        }
+        Returns: string
       }
       reset_daily_ai_quotas: {
         Args: Record<PropertyKey, never>
