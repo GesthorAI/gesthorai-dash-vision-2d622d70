@@ -1483,6 +1483,10 @@ export type Database = {
         Args: { invite_token: string }
         Returns: Json
       }
+      analyze_security_patterns: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       can_access_communications: {
         Args: { comm_organization_id: string }
         Returns: boolean
@@ -1503,6 +1507,16 @@ export type Database = {
         Args: {
           max_requests?: number
           operation_type: string
+          user_id_param: string
+          window_minutes?: number
+        }
+        Returns: boolean
+      }
+      check_rate_limit_enhanced: {
+        Args: {
+          max_requests?: number
+          operation_type: string
+          organization_id_param?: string
           user_id_param: string
           window_minutes?: number
         }
@@ -1622,11 +1636,19 @@ export type Database = {
         Args: { input_text: string }
         Returns: string
       }
+      secure_cleanup_expired_data: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       validate_organization_access: {
         Args: { org_id: string; user_id?: string }
         Returns: boolean
       }
       validate_password_strength: {
+        Args: { password: string }
+        Returns: boolean
+      }
+      validate_strong_password: {
         Args: { password: string }
         Returns: boolean
       }
