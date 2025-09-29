@@ -1,7 +1,4 @@
-import React from 'npm:react@18.3.1'
-import { Resend } from 'npm:resend@4.0.0'
-import { renderAsync } from 'npm:@react-email/components@0.0.22'
-import { InviteEmail } from './_templates/invite-email.tsx'
+import { Resend } from 'https://esm.sh/resend@2.0.0'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.56.0'
 
 const corsHeaders = {
@@ -148,16 +145,37 @@ Deno.serve(async (req) => {
     const baseUrl = req.headers.get('origin') || supabaseUrl.replace('//', '//app.')
     const acceptUrl = `${baseUrl}/invite/${inviteToken}`
 
-    // Render email template
-    const html = await renderAsync(
-      React.createElement(InviteEmail, {
-        organizationName: orgData.name,
-        inviterName,
-        invitedEmail: email,
-        role,
-        acceptUrl,
-      })
-    )
+    // Create HTML template
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #f4f4f4; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+    .content { line-height: 1.6; }
+    .button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+    .footer { color: #666; font-size: 14px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Convite para ${orgData.name}</h1>
+  </div>
+  <div class="content">
+    <p>Olá!</p>
+    <p><strong>${inviterName}</strong> está convidando você para se juntar à organização <strong>${orgData.name}</strong> como <strong>${role === 'admin' ? 'Administrador' : 'Membro'}</strong>.</p>
+    <p>Para aceitar este convite, clique no botão abaixo:</p>
+    <a href="${acceptUrl}" class="button">Aceitar Convite</a>
+    <p>Ou copie e cole este link no seu navegador:</p>
+    <p><a href="${acceptUrl}">${acceptUrl}</a></p>
+  </div>
+  <div class="footer">
+    <p>Se você não esperava este convite, pode ignorar este email com segurança.</p>
+  </div>
+</body>
+</html>`
 
     // Send email via Resend
     const { data: emailData, error: emailError } = await resend.emails.send({
