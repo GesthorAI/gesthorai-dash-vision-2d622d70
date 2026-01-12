@@ -141,10 +141,12 @@ Find duplicate groups based on the criteria and return valid JSON.`;
       const data = await response.json();
       const aiContent = data.choices[0].message.content;
       
+      let parsedDuplicateGroupsCount = 0;
       try {
         const aiResponse = JSON.parse(aiContent);
         if (aiResponse.duplicate_groups) {
           allDuplicateGroups.push(...aiResponse.duplicate_groups);
+          parsedDuplicateGroupsCount = aiResponse.duplicate_groups.length;
         }
       } catch (parseError) {
         console.error('Failed to parse AI response:', aiContent);
@@ -165,7 +167,7 @@ Find duplicate groups based on the criteria and return valid JSON.`;
           cost_estimate: ((data.usage?.prompt_tokens || 0) * 0.000001) + ((data.usage?.completion_tokens || 0) * 0.000002),
           execution_time_ms: Date.now() - startTime,
           input_json: { batch_size: batch.length, similarity_threshold },
-          output_json: { duplicate_groups_found: aiResponse.duplicate_groups?.length || 0 }
+          output_json: { duplicate_groups_found: parsedDuplicateGroupsCount }
         });
     }
 
@@ -187,11 +189,12 @@ Find duplicate groups based on the criteria and return valid JSON.`;
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in ai-dedupe function:', error);
     return new Response(JSON.stringify({ 
       success: false,
-      error: error.message 
+      error: errorMessage 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

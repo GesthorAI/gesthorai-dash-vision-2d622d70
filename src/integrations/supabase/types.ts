@@ -1327,7 +1327,7 @@ export type Database = {
         Row: {
           device_info: Json | null
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           is_active: boolean | null
           last_activity: string | null
           location_info: Json | null
@@ -1341,7 +1341,7 @@ export type Database = {
         Insert: {
           device_info?: Json | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           location_info?: Json | null
@@ -1355,7 +1355,7 @@ export type Database = {
         Update: {
           device_info?: Json | null
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           is_active?: boolean | null
           last_activity?: string | null
           location_info?: Json | null
@@ -1483,10 +1483,7 @@ export type Database = {
         Args: { invite_token: string }
         Returns: Json
       }
-      analyze_security_patterns: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      analyze_security_patterns: { Args: never; Returns: undefined }
       can_access_communications: {
         Args: { comm_organization_id: string }
         Returns: boolean
@@ -1499,10 +1496,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      check_login_attempts: {
-        Args: { ip_address: string }
-        Returns: boolean
-      }
+      check_login_attempts: { Args: { ip_address: string }; Returns: boolean }
       check_rate_limit: {
         Args: {
           max_requests?: number
@@ -1530,22 +1524,10 @@ export type Database = {
         }
         Returns: boolean
       }
-      cleanup_expired_data: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_expired_data_enhanced: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
-      cleanup_expired_embeddings: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_expired_invites: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      cleanup_expired_data: { Args: never; Returns: undefined }
+      cleanup_expired_data_enhanced: { Args: never; Returns: number }
+      cleanup_expired_embeddings: { Args: never; Returns: undefined }
+      cleanup_expired_invites: { Args: never; Returns: undefined }
       create_organization_with_admin: {
         Args: { org_name: string; org_slug: string }
         Returns: Json
@@ -1593,18 +1575,9 @@ export type Database = {
         Args: { access_type: string; metadata?: Json; resource_id?: string }
         Returns: undefined
       }
-      mask_sensitive_data: {
-        Args: { data: Json }
-        Returns: Json
-      }
-      migrate_existing_data_to_orgs: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      monitor_organization_ai_usage: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      mask_sensitive_data: { Args: { data: Json }; Returns: Json }
+      migrate_existing_data_to_orgs: { Args: never; Returns: undefined }
+      monitor_organization_ai_usage: { Args: never; Returns: undefined }
       record_ai_usage: {
         Args: {
           p_cost_estimate?: number
@@ -1615,10 +1588,7 @@ export type Database = {
         }
         Returns: undefined
       }
-      redact_pii_from_json: {
-        Args: { input_json: Json }
-        Returns: Json
-      }
+      redact_pii_from_json: { Args: { input_json: Json }; Returns: Json }
       register_user_session: {
         Args: {
           p_ip_address?: string
@@ -1628,18 +1598,9 @@ export type Database = {
         }
         Returns: string
       }
-      reset_daily_ai_quotas: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      sanitize_input: {
-        Args: { input_text: string }
-        Returns: string
-      }
-      secure_cleanup_expired_data: {
-        Args: Record<PropertyKey, never>
-        Returns: number
-      }
+      reset_daily_ai_quotas: { Args: never; Returns: undefined }
+      sanitize_input: { Args: { input_text: string }; Returns: string }
+      secure_cleanup_expired_data: { Args: never; Returns: number }
       validate_organization_access: {
         Args: { org_id: string; user_id?: string }
         Returns: boolean
@@ -1648,12 +1609,9 @@ export type Database = {
         Args: { password: string }
         Returns: boolean
       }
-      validate_strong_password: {
-        Args: { password: string }
-        Returns: boolean
-      }
+      validate_strong_password: { Args: { password: string }; Returns: boolean }
       verify_data_integrity: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           description: string
           issue_count: number

@@ -84,8 +84,9 @@ serve(async (req) => {
 
     // 2. Se não houver chave do usuário, usar chave do sistema
     if (!openAIApiKey) {
-      openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-      if (openAIApiKey) {
+      const systemKey = Deno.env.get('OPENAI_API_KEY');
+      if (systemKey) {
+        openAIApiKey = systemKey;
         keySource = 'system';
         console.log(`Using system OpenAI key for user ${user.id}`);
       }
@@ -160,7 +161,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in ai-smoketest:', error);
     
     // Try to log error if we have user context
@@ -181,9 +183,9 @@ serve(async (req) => {
             user_id: user.id,
             scope: 'admin:smoketest',
             model: 'api-test',
-            error_message: error.message,
+            error_message: errorMessage,
             input_json: { test: 'connection' },
-            output_json: { error: error.message }
+            output_json: { error: errorMessage }
           });
         }
       }
@@ -193,9 +195,9 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       success: false,
-      error: error.message,
+      error: errorMessage,
       status: 'error',
-      message: `Erro: ${error.message}`
+      message: `Erro: ${errorMessage}`
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

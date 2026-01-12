@@ -303,11 +303,12 @@ Forneça pontuações detalhadas para todos os ${batch.length} leads.`;
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in ai-lead-score:', error);
     return new Response(
       JSON.stringify({ 
-        error: error.message,
+        error: errorMessage,
         scores: []
       }),
       {

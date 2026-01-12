@@ -311,16 +311,18 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
     console.error('❌ N8N FOLLOWUP DISPATCH FAILED ===');
     console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
+      message: errorMessage,
+      stack: errorStack,
       timestamp: new Date().toISOString()
     });
     
     return new Response(JSON.stringify({ 
-      error: error.message,
+      error: errorMessage,
       success: false 
     }), {
       status: 500,
