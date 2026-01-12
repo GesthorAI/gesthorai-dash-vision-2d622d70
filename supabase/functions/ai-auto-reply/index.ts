@@ -246,8 +246,9 @@ Responda de forma natural e útil:`;
       if (!sendResponse.ok) {
         sendError = `Evolution API error: ${sendResponse.status} - ${JSON.stringify(sendResult)}`;
       }
-    } catch (e) {
-      sendError = `Failed to parse Evolution API response: ${e.message}`;
+    } catch (e: unknown) {
+      const parseErrorMessage = e instanceof Error ? e.message : 'Unknown error';
+      sendError = `Failed to parse Evolution API response: ${parseErrorMessage}`;
     }
 
     // Record the auto-reply communication
@@ -305,10 +306,11 @@ Responda de forma natural e útil:`;
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in ai-auto-reply function:', error);
     return new Response(JSON.stringify({ 
-      error: error.message,
+      error: errorMessage,
       success: false 
     }), {
       status: 500,
