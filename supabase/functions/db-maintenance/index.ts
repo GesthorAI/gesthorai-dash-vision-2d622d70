@@ -178,6 +178,76 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Task 5: Capture daily snapshots for trend charts
+    const snapshotStart = Date.now();
+    try {
+      const { data: snapshotData, error: snapshotError } = await supabaseAdmin.rpc(
+        "capture_daily_snapshots"
+      );
+
+      if (snapshotError) {
+        console.error("[db-maintenance] Snapshot capture error:", snapshotError);
+        results.push({
+          task: "capture_daily_snapshots",
+          success: false,
+          duration_ms: Date.now() - snapshotStart,
+          error: snapshotError.message,
+        });
+      } else {
+        const snapshotCount = Array.isArray(snapshotData) ? snapshotData.length : 0;
+        console.log(`[db-maintenance] Captured ${snapshotCount} daily snapshots`);
+        results.push({
+          task: "capture_daily_snapshots",
+          success: true,
+          duration_ms: Date.now() - snapshotStart,
+        });
+      }
+    } catch (err) {
+      console.error("[db-maintenance] Snapshot capture exception:", err);
+      results.push({
+        task: "capture_daily_snapshots",
+        success: false,
+        duration_ms: Date.now() - snapshotStart,
+        error: err.message,
+      });
+    }
+
+    // Task 6: Cleanup old snapshots (>180 days)
+    const oldSnapshotCleanupStart = Date.now();
+    try {
+      const { data: deletedCount, error: cleanupSnapshotError } = await supabaseAdmin.rpc(
+        "cleanup_old_snapshots"
+      );
+
+      if (cleanupSnapshotError) {
+        // Function may not exist yet
+        if (!cleanupSnapshotError.message.includes("does not exist")) {
+          console.error("[db-maintenance] Snapshot cleanup error:", cleanupSnapshotError);
+          results.push({
+            task: "cleanup_old_snapshots",
+            success: false,
+            duration_ms: Date.now() - oldSnapshotCleanupStart,
+            error: cleanupSnapshotError.message,
+          });
+        }
+      } else {
+        console.log(`[db-maintenance] Cleaned up ${deletedCount || 0} old snapshots`);
+        results.push({
+          task: "cleanup_old_snapshots",
+          success: true,
+          duration_ms: Date.now() - oldSnapshotCleanupStart,
+        });
+      }
+    } catch (err) {
+      console.error("[db-maintenance] Snapshot cleanup exception:", err);
+      results.push({
+        task: "cleanup_old_snapshots",
+        success: false,
+        duration_ms: Date.now() - oldSnapshotCleanupStart,
+        error: err.message,
+      });
+    }
+
     // Log maintenance execution to audit_logs
     try {
       await supabaseAdmin.from("audit_logs").insert({
