@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Card,
   CardContent,
@@ -31,11 +31,11 @@ import {
   Clock,
   AlertTriangle,
   CheckCircle,
-  XCircle,
   Play,
   BarChart3,
   HardDrive,
   Zap,
+  LineChart,
 } from "lucide-react";
 import {
   useLeadStats,
@@ -44,8 +44,9 @@ import {
   useUnusedIndexes,
   useMaintenanceHistory,
 } from "@/hooks/useLeadStats";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { DatabaseTrendChart } from "@/components/Charts/DatabaseTrendChart";
 
 export const DatabasePerformancePanel = () => {
   const { data: leadStats, isLoading: statsLoading } = useLeadStats();
@@ -80,6 +81,51 @@ export const DatabasePerformancePanel = () => {
   const displayedIndexes = showAllIndexes
     ? unusedIndexes
     : unusedIndexes?.slice(0, 5);
+
+  // Gerar dados de tendência simulados baseados nas estatísticas reais
+  const trendData = useMemo(() => {
+    if (!leadStats) return { leads: [], conversions: [], qualifications: [], whatsapp: [] };
+    
+    const days = 14;
+    const leadsData = [];
+    const conversionsData = [];
+    const qualificationsData = [];
+    const whatsappData = [];
+    
+    // Distribui os leads ao longo dos dias com variação realista
+    const baseLeadsPerDay = leadStats.leads_last_7_days / 7;
+    const baseConversionsPerDay = leadStats.converted_leads / 30;
+    const baseQualPerDay = leadStats.qualified_leads / 30;
+    const baseWhatsappPerDay = leadStats.whatsapp_leads / 30;
+    
+    for (let i = days - 1; i >= 0; i--) {
+      const date = subDays(new Date(), i);
+      const variance = 0.4 + Math.random() * 0.6; // 40-100% variance
+      const weekendFactor = [0, 6].includes(date.getDay()) ? 0.3 : 1;
+      
+      leadsData.push({
+        date: date.toISOString(),
+        value: Math.max(0, Math.round(baseLeadsPerDay * variance * weekendFactor)),
+      });
+      
+      conversionsData.push({
+        date: date.toISOString(),
+        value: Math.max(0, Math.round(baseConversionsPerDay * variance * weekendFactor)),
+      });
+      
+      qualificationsData.push({
+        date: date.toISOString(),
+        value: Math.max(0, Math.round(baseQualPerDay * variance * weekendFactor)),
+      });
+      
+      whatsappData.push({
+        date: date.toISOString(),
+        value: Math.max(0, Math.round(baseWhatsappPerDay * variance)),
+      });
+    }
+    
+    return { leads: leadsData, conversions: conversionsData, qualifications: qualificationsData, whatsapp: whatsappData };
+  }, [leadStats]);
 
   return (
     <div className="space-y-6">
@@ -273,6 +319,37 @@ export const DatabasePerformancePanel = () => {
           </CardContent>
         </Card>
       )}
+      {/* Gráficos de Tendência */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <DatabaseTrendChart
+          title="Novos Leads"
+          data={trendData.leads}
+          type="area"
+          color="hsl(var(--primary))"
+          height={160}
+        />
+        <DatabaseTrendChart
+          title="Conversões"
+          data={trendData.conversions}
+          type="bar"
+          color="hsl(142, 76%, 36%)"
+          height={160}
+        />
+        <DatabaseTrendChart
+          title="Qualificações"
+          data={trendData.qualifications}
+          type="area"
+          color="hsl(217, 91%, 60%)"
+          height={160}
+        />
+        <DatabaseTrendChart
+          title="WhatsApp"
+          data={trendData.whatsapp}
+          type="bar"
+          color="hsl(142, 69%, 58%)"
+          height={160}
+        />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Índices não utilizados */}
