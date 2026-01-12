@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.security-monitor]
 verify_jwt = false
+
+[functions.db-maintenance]
+verify_jwt = false
