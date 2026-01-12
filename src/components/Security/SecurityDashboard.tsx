@@ -4,13 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Shield, Users, Activity, Eye, Settings } from 'lucide-react';
+import { AlertTriangle, Shield, Users, Activity, Eye, Settings, Database } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrganizationContext } from '@/contexts/OrganizationContext';
 import { SecurityAlertsList } from './SecurityAlertsList';
 import { UserSessionsList } from './UserSessionsList';
 import { PermissionsManager } from './PermissionsManager';
 import { RolesManager } from './RolesManager';
+import { DatabasePerformancePanel } from './DatabasePerformancePanel';
 
 export const SecurityDashboard = () => {
   const { currentOrganizationId } = useOrganizationContext();
@@ -151,11 +152,15 @@ export const SecurityDashboard = () => {
 
       {/* Security Management Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="alerts">Alerts</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
           <TabsTrigger value="permissions">Access Control</TabsTrigger>
+          <TabsTrigger value="database" className="flex items-center gap-1">
+            <Database className="h-3 w-3" />
+            Database
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -244,6 +249,10 @@ export const SecurityDashboard = () => {
             <RolesManager />
             <PermissionsManager />
           </div>
+        </TabsContent>
+
+        <TabsContent value="database">
+          <DatabasePerformancePanel />
         </TabsContent>
       </Tabs>
     </div>
