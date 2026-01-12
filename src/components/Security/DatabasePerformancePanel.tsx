@@ -35,7 +35,7 @@ import {
   BarChart3,
   HardDrive,
   Zap,
-  LineChart,
+  Info,
 } from "lucide-react";
 import {
   useLeadStats,
@@ -44,6 +44,7 @@ import {
   useUnusedIndexes,
   useMaintenanceHistory,
 } from "@/hooks/useLeadStats";
+import { useTrendData } from "@/hooks/useLeadStatsHistory";
 import { format, formatDistanceToNow, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { DatabaseTrendChart } from "@/components/Charts/DatabaseTrendChart";
@@ -53,6 +54,9 @@ export const DatabasePerformancePanel = () => {
   const { data: unusedIndexes, isLoading: indexesLoading } = useUnusedIndexes();
   const { data: maintenanceHistory, isLoading: historyLoading } =
     useMaintenanceHistory(5);
+  
+  // Dados de tendência reais ou simulados
+  const { data: realTrendData, hasRealData, isLoading: trendLoading } = useTrendData(14);
 
   const refreshStats = useRefreshLeadStats();
   const runMaintenance = useDatabaseMaintenance();
@@ -82,8 +86,14 @@ export const DatabasePerformancePanel = () => {
     ? unusedIndexes
     : unusedIndexes?.slice(0, 5);
 
-  // Gerar dados de tendência simulados baseados nas estatísticas reais
+  // Gerar dados simulados como fallback se não houver dados reais
   const trendData = useMemo(() => {
+    // Se tem dados reais, usa eles
+    if (hasRealData && realTrendData.leads.length > 0) {
+      return realTrendData;
+    }
+    
+    // Fallback: dados simulados baseados nas estatísticas atuais
     if (!leadStats) return { leads: [], conversions: [], qualifications: [], whatsapp: [] };
     
     const days = 14;
@@ -92,7 +102,6 @@ export const DatabasePerformancePanel = () => {
     const qualificationsData = [];
     const whatsappData = [];
     
-    // Distribui os leads ao longo dos dias com variação realista
     const baseLeadsPerDay = leadStats.leads_last_7_days / 7;
     const baseConversionsPerDay = leadStats.converted_leads / 30;
     const baseQualPerDay = leadStats.qualified_leads / 30;
@@ -100,7 +109,7 @@ export const DatabasePerformancePanel = () => {
     
     for (let i = days - 1; i >= 0; i--) {
       const date = subDays(new Date(), i);
-      const variance = 0.4 + Math.random() * 0.6; // 40-100% variance
+      const variance = 0.4 + Math.random() * 0.6;
       const weekendFactor = [0, 6].includes(date.getDay()) ? 0.3 : 1;
       
       leadsData.push({
@@ -125,7 +134,7 @@ export const DatabasePerformancePanel = () => {
     }
     
     return { leads: leadsData, conversions: conversionsData, qualifications: qualificationsData, whatsapp: whatsappData };
-  }, [leadStats]);
+  }, [leadStats, hasRealData, realTrendData]);
 
   return (
     <div className="space-y-6">
@@ -320,35 +329,45 @@ export const DatabasePerformancePanel = () => {
         </Card>
       )}
       {/* Gráficos de Tendência */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <DatabaseTrendChart
-          title="Novos Leads"
-          data={trendData.leads}
-          type="area"
-          color="hsl(var(--primary))"
-          height={160}
-        />
-        <DatabaseTrendChart
-          title="Conversões"
-          data={trendData.conversions}
-          type="bar"
-          color="hsl(142, 76%, 36%)"
-          height={160}
-        />
-        <DatabaseTrendChart
-          title="Qualificações"
-          data={trendData.qualifications}
-          type="area"
-          color="hsl(217, 91%, 60%)"
-          height={160}
-        />
-        <DatabaseTrendChart
-          title="WhatsApp"
-          data={trendData.whatsapp}
-          type="bar"
-          color="hsl(142, 69%, 58%)"
-          height={160}
-        />
+      <div className="space-y-2">
+        {!hasRealData && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 px-3 py-2 rounded-md">
+            <Info className="h-3.5 w-3.5" />
+            <span>
+              Dados simulados. Execute a migração <code className="font-mono bg-muted px-1 rounded">DATABASE_SNAPSHOTS.sql</code> e rode <strong>Run Maintenance</strong> para capturar dados reais.
+            </span>
+          </div>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <DatabaseTrendChart
+            title="Novos Leads"
+            data={trendData.leads}
+            type="area"
+            color="hsl(var(--primary))"
+            height={160}
+          />
+          <DatabaseTrendChart
+            title="Conversões"
+            data={trendData.conversions}
+            type="bar"
+            color="hsl(142, 76%, 36%)"
+            height={160}
+          />
+          <DatabaseTrendChart
+            title="Qualificações"
+            data={trendData.qualifications}
+            type="area"
+            color="hsl(217, 91%, 60%)"
+            height={160}
+          />
+          <DatabaseTrendChart
+            title="WhatsApp"
+            data={trendData.whatsapp}
+            type="bar"
+            color="hsl(142, 69%, 58%)"
+            height={160}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
