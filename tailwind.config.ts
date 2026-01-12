@@ -60,6 +60,10 @@ export default {
 					DEFAULT: 'hsl(var(--warning))',
 					foreground: 'hsl(var(--warning-foreground))'
 				},
+				trend: {
+					positive: 'hsl(var(--trend-positive))',
+					negative: 'hsl(var(--trend-negative))'
+				},
 				brand: {
 					primary: 'hsl(var(--brand-primary))',
 					'primary-light': 'hsl(var(--brand-primary-light))',

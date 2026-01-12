@@ -22,15 +22,19 @@ export const KPICard = ({ title, value, trend, icon, description }: KPICardProps
           <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
         </div>
         {trend && (
-          <div className={`flex items-center gap-1 text-sm ${
-            trend.isPositive ? "trend-positive" : "trend-negative"
-          }`}>
+          <div 
+            className={`flex items-center gap-1 text-sm ${
+              trend.isPositive ? "text-trend-positive" : "text-trend-negative"
+            }`}
+            role="status"
+            aria-label={`Tendência ${trend.isPositive ? 'positiva' : 'negativa'} de ${trend.value}%`}
+          >
             {trend.isPositive ? (
-              <TrendingUp className="h-3 w-3" />
+              <TrendingUp className="h-3 w-3" aria-hidden="true" />
             ) : (
-              <TrendingDown className="h-3 w-3" />
+              <TrendingDown className="h-3 w-3" aria-hidden="true" />
             )}
-            {trend.value > 0 ? "+" : ""}{trend.value}%
+            <span>{trend.value > 0 ? "+" : ""}{trend.value}%</span>
           </div>
         )}
       </div>

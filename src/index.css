@@ -40,6 +40,10 @@
     --warning: 48 96% 53%;                /* Yellow */
     --warning-foreground: 222 47% 4%;
 
+    /* Trend indicators */
+    --trend-positive: 142 76% 45%;        /* Emerald for positive trends */
+    --trend-negative: 0 84% 60%;          /* Red for negative trends */
+
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
@@ -141,11 +145,11 @@
   }
   
   .trend-positive {
-    @apply text-emerald-400;
+    color: hsl(var(--trend-positive));
   }
   
   .trend-negative {
-    @apply text-red-400;
+    color: hsl(var(--trend-negative));
   }
   
   /* Chart Animations */
