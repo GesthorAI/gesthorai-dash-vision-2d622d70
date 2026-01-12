@@ -1,0 +1,185 @@
+# GesthorAI - Cursor Rules
+
+## Stack
+- **Framework**: React 18 + Vite + TypeScript (strict mode)
+- **Styling**: Tailwind CSS v3 + shadcn/ui
+- **Backend**: Supabase (Auth, Database, Edge Functions, Storage)
+- **State**: React Query (TanStack Query) + Zustand
+- **Forms**: React Hook Form + Zod
+- **Icons**: Lucide React
+- **Charts**: Recharts
+- **Router**: React Router v6
+
+## Project Structure
+```
+src/
+├── components/
+│   ├── ui/           # shadcn/ui primitives (DO NOT modify unless necessary)
+│   ├── AI/           # AI-powered features
+│   ├── Analytics/    # Charts and analytics
+│   ├── Auth/         # Authentication components
+│   ├── Charts/       # Chart components
+│   ├── Dashboard/    # Dashboard-specific components
+│   ├── Filters/      # Filter components
+│   ├── Followups/    # Follow-up management
+│   ├── Layout/       # Layout components
+│   ├── Leads/        # Lead management
+│   ├── Notifications/# Notification components
+│   ├── Operations/   # Bulk operations
+│   ├── Organization/ # Multi-tenant organization
+│   ├── Search/       # Search components
+│   ├── Security/     # Security dashboard
+│   ├── Settings/     # Settings pages
+│   ├── Tasks/        # Task management
+│   ├── WhatsApp/     # WhatsApp integration
+│   └── Workflow/     # Workflow automation
+├── hooks/            # Custom React hooks
+├── pages/            # Route pages
+├── contexts/         # React contexts
+├── integrations/     # External service integrations
+├── lib/              # Utility functions
+└── utils/            # Helper utilities
+
+supabase/
+└── functions/        # Edge Functions (Deno)
+```
+
+## Code Conventions
+
+### Components
+- Use functional components with TypeScript
+- Named exports preferred: `export const MyComponent = () => {}`
+- Props interface before component: `interface MyComponentProps {}`
+- Use `forwardRef` when component needs ref forwarding
+- Keep components focused and small (<150 lines)
+
+### Hooks
+- Prefix with `use`: `useLeads`, `useFilters`
+- Extract reusable logic into custom hooks
+- Use React Query for server state
+- Use Zustand for complex client state
+
+### Tailwind CSS
+- Use semantic tokens from design system (NEVER hardcode colors)
+- Order: Layout → Display → Positioning → Spacing → Typography → Visual → Interactive
+- Use `cn()` utility for conditional classes
+- Use `cva` for component variants
+- Mobile-first: base classes for mobile, breakpoints for desktop
+
+### Design Tokens (index.css)
+```css
+/* Use these semantic tokens */
+--background, --foreground
+--card, --card-foreground
+--primary, --primary-foreground
+--secondary, --secondary-foreground
+--muted, --muted-foreground
+--accent, --accent-foreground
+--destructive, --destructive-foreground
+--success, --success-foreground
+--warning, --warning-foreground
+--trend-positive, --trend-negative
+--border, --input, --ring
+```
+
+### Accessibility (REQUIRED)
+- Add `sr-only` text for icon-only buttons
+- Use `focus-visible:ring-2` for keyboard focus
+- Include proper ARIA labels
+- Support keyboard navigation
+- Respect `motion-reduce` preference
+
+### TypeScript
+- Strict mode enabled
+- No `any` - use `unknown` with type guards
+- Define explicit return types for functions
+- Use Zod for runtime validation
+
+### Edge Functions (Deno)
+- Type `catch` blocks: `catch (error: unknown)`
+- Use `error instanceof Error ? error.message : 'Unknown error'`
+- Always handle CORS
+- Validate JWT for protected endpoints
+
+## Anti-Patterns to AVOID
+
+### Tailwind
+```tsx
+// ❌ Dynamic class strings (not compiled)
+className={`text-${color}-500`}
+
+// ✅ Explicit mapping
+const colorMap = { red: 'text-red-500', blue: 'text-blue-500' }
+
+// ❌ Hardcoded colors
+className="bg-blue-500 text-white"
+
+// ✅ Semantic tokens
+className="bg-primary text-primary-foreground"
+
+// ❌ Conflicting classes
+className="p-2 p-4"
+
+// ✅ Single value per property
+className="p-4"
+```
+
+### React
+```tsx
+// ❌ useEffect for derived state
+useEffect(() => setFullName(`${first} ${last}`), [first, last])
+
+// ✅ Computed value
+const fullName = `${first} ${last}`
+
+// ❌ Unstable keys
+items.map((item, index) => <Item key={index} />)
+
+// ✅ Stable keys
+items.map((item) => <Item key={item.id} />)
+```
+
+### Accessibility
+```tsx
+// ❌ Icon-only button without accessible text
+<Button><Icon /></Button>
+
+// ✅ Include sr-only text
+<Button>
+  <Icon aria-hidden="true" />
+  <span className="sr-only">Action description</span>
+</Button>
+
+// ❌ Remove focus outline
+className="focus:outline-none"
+
+// ✅ Replace with visible indicator
+className="focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+```
+
+## File Naming
+- Components: `PascalCase.tsx`
+- Hooks: `camelCase.ts` (use*.ts)
+- Utils: `camelCase.ts`
+- Pages: `PascalCase.tsx`
+- Directories: `kebab-case` or `PascalCase` for component folders
+
+## Import Order
+1. React/external libraries
+2. @/components/ui (shadcn)
+3. @/components (custom)
+4. @/hooks
+5. @/lib, @/utils
+6. @/integrations
+7. Types/interfaces
+8. Relative imports
+
+## Quality Checklist (Every PR)
+- [ ] No TypeScript errors
+- [ ] Using semantic design tokens
+- [ ] Keyboard navigation works
+- [ ] focus-visible on interactive elements
+- [ ] sr-only on icon-only buttons
+- [ ] Loading, empty, error states handled
+- [ ] Mobile responsive
+- [ ] Dark mode works

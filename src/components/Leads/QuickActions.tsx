@@ -142,7 +142,8 @@ export const QuickActions = ({ lead, onLeadUpdate, compact = false }: QuickActio
           </Badge>
           {lead.score && (
             <Badge variant={lead.score >= 7 ? "default" : "secondary"} className="text-xs">
-              <Star className="w-3 h-3 mr-1" />
+              <Star className="w-3 h-3 mr-1" aria-hidden="true" />
+              <span className="sr-only">Score do lead:</span>
               {lead.score}
             </Badge>
           )}
@@ -154,8 +155,9 @@ export const QuickActions = ({ lead, onLeadUpdate, compact = false }: QuickActio
             variant="outline" 
             onClick={() => updateLeadStatus("contatado")}
             disabled={isProcessing}
+            aria-label="Marcar como contatado"
           >
-            <Phone className="w-3 h-3 mr-1" />
+            <Phone className="w-3 h-3 mr-1" aria-hidden="true" />
             Contactar
           </Button>
           <Button 
@@ -163,8 +165,9 @@ export const QuickActions = ({ lead, onLeadUpdate, compact = false }: QuickActio
             variant="outline"
             onClick={() => updateLeadStatus("qualificado")}
             disabled={isProcessing}
+            aria-label="Marcar como qualificado"
           >
-            <UserCheck className="w-3 h-3 mr-1" />
+            <UserCheck className="w-3 h-3 mr-1" aria-hidden="true" />
             Qualificar
           </Button>
           <Button 
@@ -172,8 +175,9 @@ export const QuickActions = ({ lead, onLeadUpdate, compact = false }: QuickActio
             variant="outline"
             onClick={() => scheduleFollowUp(3)}
             disabled={isProcessing}
+            aria-label="Agendar follow-up em 3 dias"
           >
-            <Clock className="w-3 h-3 mr-1" />
+            <Clock className="w-3 h-3 mr-1" aria-hidden="true" />
             Follow-up
           </Button>
           <Button 
@@ -181,8 +185,9 @@ export const QuickActions = ({ lead, onLeadUpdate, compact = false }: QuickActio
             variant="outline"
             onClick={() => updateLeadStatus("perdido")}
             disabled={isProcessing}
+            aria-label="Descartar lead"
           >
-            <XCircle className="w-3 h-3 mr-1" />
+            <XCircle className="w-3 h-3 mr-1" aria-hidden="true" />
             Descartar
           </Button>
         </div>
@@ -203,7 +208,8 @@ export const QuickActions = ({ lead, onLeadUpdate, compact = false }: QuickActio
         </Badge>
         {lead.score && (
           <Badge variant={lead.score >= 7 ? "default" : "secondary"}>
-            <Star className="w-4 h-4 mr-1" />
+            <Star className="w-4 h-4 mr-1" aria-hidden="true" />
+            <span className="sr-only">Score do lead:</span>
             Score: {lead.score}
           </Badge>
         )}
